@@ -38,7 +38,7 @@ void MainRayGenShader()
     ndcCoords = ndcCoords * 2 - float2(1, 1);
     ndcCoords = ndcCoords * g_Zoom;
 
-    // Get a ray in camera space.
+    // Get a ray in view space.
     float3 viewDirection = normalize(float3(ndcCoords.x * g_AspectRatio, ndcCoords.y, 1));
 
     // Rotate the ray from view space to world space.
@@ -78,7 +78,6 @@ void MainMissShader0(inout RayPayload payload : SV_RayPayload)
 {
     Result result;
 
-    // Env maps are HDR (linear space)
     result.radiance = payload.radiance + payload.throughput * g_EnvTex.SampleLevel(sampler_g_EnvTex, WorldRayDirection(), 0).xyz;
 
     CallShader(0, result);
