@@ -2,7 +2,13 @@
 
 This demo implements a Monte Carlo Path Tracing technique using hardware accelerated ray tracing support in Unity. There is no rasterization based rendering in the demo and a render pipeline is not used (the Camera doesn't render any geometry).
 
-<img src="Images/397D40F8-9241-49FD-8063-1386E574D217.png" width="1280">
+<img src="Images/CornellBox.png" width="1280">
+
+<img src="Images/Gazebo.png" width="1280">
+
+<img src="Images/WoodenBalls.png" width="1280">
+
+<img src="Images/Glass.png" width="1280">
 
 ## Prerequisites
 
