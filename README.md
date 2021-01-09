@@ -18,7 +18,8 @@ This demo implements a Monte Carlo Path Tracing technique using hardware acceler
 
 ## Acknowledgements
 
-Alan Wolfe (@Atrix256 on Twitter) for his blog about computer graphics. The demo was inspired by the series of 3 blog posts: 
+Alan Wolfe (@Atrix256 on Twitter) for his blog about computer graphics. The demo was inspired by the series of 3 blog posts:
+
 https://blog.demofox.org/2020/05/25/casual-shadertoy-path-tracing-1-basic-camera-diffuse-emissive/
 https://blog.demofox.org/2020/06/06/casual-shadertoy-path-tracing-2-image-improvement-and-glossy-reflections/
 https://blog.demofox.org/2020/06/14/casual-shadertoy-path-tracing-3-fresnel-rough-refraction-absorption-orbit-camera/
