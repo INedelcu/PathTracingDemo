@@ -26,7 +26,7 @@ This demo implements a Monte Carlo Path Tracing technique using hardware acceler
 
 <img src="Images/Settings.png" width="1280">
 
-When in Play Mode, hold right mouse button down use WASD keys to navigate through the scene. Convergence is reset when the view changes.
+When in Play Mode, hold right mouse button down and use WASD keys to navigate through the scene. Convergence is reset when the view changes.
 
 ## Acknowledgements
 
