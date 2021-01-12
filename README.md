@@ -20,7 +20,13 @@ This demo implements a Monte Carlo Path Tracing technique using hardware acceler
 
 * Use **winver** in a command prompt to see exactly which Windows version you are using.
 * NVIDIA GPUs from RTX 2000 series and above are recommended because they have hardware units dedicated to ray tracing. A GTX 1060 GPU was 10 to 15 times slower in tests because ray tracing support is emulated and runs entirely on compute units.
-* Alternatively use a tool like GPU-Z to check if your system supports ray tracing.
+* Alternatively use a tool like GPU-Z to check if your system supports ray tracing. The demo will print an error in the console window if ray tracing is not supported.
+
+## Setup and Interaction
+
+<img src="Images/Settings.png" width="1280">
+
+When in Play Mode, hold right mouse button down use WASD keys to navigate through the scene. Convergence is reset when the view changes.
 
 ## Acknowledgements
 
