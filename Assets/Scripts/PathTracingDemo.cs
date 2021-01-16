@@ -9,12 +9,10 @@ public class PathTracingDemo : MonoBehaviour
 
     public Cubemap envTexture = null;
 
-    // bounceCountOpaque + bounceCountTransparent ranges should not exceed 31
-
-    [Range(1, 10)]
+    [Range(1, 100)]
     public uint bounceCountOpaque = 5;
 
-    [Range(1, 20)]
+    [Range(1, 100)]
     public uint bounceCountTransparent = 8;
     
     private uint cameraWidth = 0;
@@ -145,14 +143,15 @@ public class PathTracingDemo : MonoBehaviour
 
         rayTracingShader.SetShaderPass("PathTracing");
 
+        Shader.SetGlobalInt(Shader.PropertyToID("g_BounceCountOpaque"), (int)bounceCountOpaque);
+        Shader.SetGlobalInt(Shader.PropertyToID("g_BounceCountTransparent"), (int)bounceCountTransparent);
+
         // Input
         rayTracingShader.SetAccelerationStructure(Shader.PropertyToID("g_AccelStruct"), rayTracingAccelerationStructure);
         rayTracingShader.SetFloat(Shader.PropertyToID("g_Zoom"), Mathf.Tan(Mathf.Deg2Rad * Camera.main.fieldOfView * 0.5f));
         rayTracingShader.SetFloat(Shader.PropertyToID("g_AspectRatio"), cameraWidth / (float)cameraHeight);
         rayTracingShader.SetInt(Shader.PropertyToID("g_ConvergenceStep"), convergenceStep);
         rayTracingShader.SetInt(Shader.PropertyToID("g_FrameIndex"), Time.frameCount);
-        rayTracingShader.SetInt(Shader.PropertyToID("g_BounceCountOpaque"), (int)bounceCountOpaque);
-        rayTracingShader.SetInt(Shader.PropertyToID("g_BounceCountTransparent"), (int)bounceCountTransparent);
         rayTracingShader.SetTexture(Shader.PropertyToID("g_EnvTex"), envTexture);
 
         // Output

@@ -9,7 +9,7 @@ Material:
   m_PrefabAsset: {fileID: 0}
   m_Name: GlassTeapot
   m_Shader: {fileID: 4800000, guid: 25d37f304af4edc4683cb36ad5136e1c, type: 3}
-  m_ShaderKeywords: _FLAT_SHADING _HAS_ATTENUATION
+  m_ShaderKeywords: _HAS_ATTENUATION
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
@@ -21,11 +21,11 @@ Material:
     m_TexEnvs: []
     m_Floats:
     - _Attenuation: 1
-    - _ExtinctionCoefficient: 5.24
-    - _FlatShading: 1
+    - _ExtinctionCoefficient: 3.8
+    - _FlatShading: 0
     - _HasRoughness: 0
     - _IOR: 1.729
     - _Roughness: 0
     m_Colors:
-    - _Color: {r: 1, g: 0.7035622, b: 0.043137252, a: 1}
+    - _Color: {r: 1, g: 1, b: 1, a: 1}
   m_BuildTextureStacks: []

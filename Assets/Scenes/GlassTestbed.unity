@@ -1509,7 +1509,7 @@ MonoBehaviour:
   rayTracingShader: {fileID: 4807578003741378534, guid: 25de828becd32954ba57c3fe01f040cf, type: 3}
   envTexture: {fileID: 8900000, guid: 2348078f81843ae49a786145ccae1803, type: 3}
   bounceCountOpaque: 6
-  bounceCountTransparent: 7
+  bounceCountTransparent: 10
 --- !u!1 &1142075854
 GameObject:
   m_ObjectHideFlags: 0

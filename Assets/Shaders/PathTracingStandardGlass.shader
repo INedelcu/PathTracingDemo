@@ -116,13 +116,9 @@ Shader "PathTracing/StandardGlass"
             [shader("closesthit")]
             void ClosestHitMain(inout RayPayload payload : SV_RayPayload, AttributeData attribs : SV_IntersectionAttributes)
             {
-                if (payload.bounceCountTransparent == 0)
+                if (payload.bounceIndexTransparent == g_BounceCountTransparent)
                 {
-                    Result result;
-                    result.radiance = payload.radiance;
-
-                    CallShader(0, result);
-
+                    payload.bounceIndexTransparent = -1;
                     return;
                 }
 
@@ -171,23 +167,14 @@ Shader "PathTracing/StandardGlass"
 
                 float pushOff = doRefraction ? -K_RAY_ORIGIN_PUSH_OFF : K_RAY_ORIGIN_PUSH_OFF;
 
-                RayDesc ray;
-                ray.Origin      = worldPosition + pushOff * worldNormal;
-                ray.Direction   = bounceRayDir;
-                ray.TMin        = 0;
-                ray.TMax        = K_T_MAX;
+                float3 albedo = !isFrontFace ? exp(-(1 - _Color.xyz) * RayTCurrent() * _ExtinctionCoefficient) : float3(1, 1, 1);
 
-                float3 color = !isFrontFace ? exp(-(1 - _Color.xyz) * RayTCurrent() * _ExtinctionCoefficient) : float3(1, 1, 1);
-            
-                RayPayload bounceRayPayload;
-                bounceRayPayload.radiance               = payload.radiance;
-                bounceRayPayload.throughput             = payload.throughput * color;
-                bounceRayPayload.bounceCountOpaque      = payload.bounceCountOpaque;
-                bounceRayPayload.bounceCountTransparent = payload.bounceCountTransparent - 1;
-                bounceRayPayload.rngState               = payload.rngState;                                            
-
-                uint missShaderIndex = 0;
-                TraceRay(g_AccelStruct, 0, 0xFF, 0, 1, missShaderIndex, ray, bounceRayPayload);
+                payload.k                       = (doRefraction == 1) ? 1 - fresnelFactor : fresnelFactor;
+                payload.albedo                  = albedo;
+                payload.emission                = float3(0, 0, 0);
+                payload.bounceIndexTransparent  = payload.bounceIndexTransparent + 1;
+                payload.bounceRayOrigin         = worldPosition + pushOff * worldNormal;
+                payload.bounceRayDirection      = bounceRayDir;
             }
 
             ENDHLSL

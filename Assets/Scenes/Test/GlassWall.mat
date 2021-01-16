@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: PathTracing_StandardGlass
+  m_Name: GlassWall
   m_Shader: {fileID: 4800000, guid: 25d37f304af4edc4683cb36ad5136e1c, type: 3}
   m_ShaderKeywords: 
   m_LightmapFlags: 4

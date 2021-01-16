@@ -152,7 +152,13 @@ Shader "PathTracing/Standard"
 
             [shader("closesthit")]
             void ClosestHitMain(inout RayPayload payload : SV_RayPayload, AttributeData attribs : SV_IntersectionAttributes)
-            {             
+            {
+                if (payload.bounceIndexOpaque == g_BounceCountOpaque)
+                {
+                    payload.bounceIndexOpaque = -1;
+                    return;
+                }
+
                 uint3 triangleIndices = UnityRayTracingFetchTriangleIndices(PrimitiveIndex());
 
                 Vertex v0, v1, v2;
@@ -163,109 +169,53 @@ Shader "PathTracing/Standard"
                 float3 barycentricCoords = float3(1.0 - attribs.barycentrics.x - attribs.barycentrics.y, attribs.barycentrics.x, attribs.barycentrics.y);
                 Vertex v = InterpolateVertices(v0, v1, v2, barycentricCoords);
             
-
-                float3 emissive = float3(0, 0, 0);
+                float3 emission = float3(0, 0, 0);
 
 #if _EMISSION
-                emissive = _EmissionColor * _EmissionTex.SampleLevel(sampler__EmissionTex, _EmissionTex_ST.xy * v.uv + _EmissionTex_ST.zw, 0).xyz;
-#endif
-                if (payload.bounceCountOpaque > 0)
-                {
-                    bool isFrontFace = HitKind() == HIT_KIND_TRIANGLE_FRONT_FACE;
+                emission = _EmissionColor * _EmissionTex.SampleLevel(sampler__EmissionTex, _EmissionTex_ST.xy * v.uv + _EmissionTex_ST.zw, 0).xyz;
+#endif               
+                bool isFrontFace = HitKind() == HIT_KIND_TRIANGLE_FRONT_FACE;
 
-                    float3 localNormal = isFrontFace ? v.normal : -v.normal;
+                float3 localNormal = isFrontFace ? v.normal : -v.normal;
 
-                    float3 worldNormal = normalize(mul(localNormal, (float3x3)WorldToObject()));
+                float3 worldNormal = normalize(mul(localNormal, (float3x3)WorldToObject()));
 
-                    float fresnelFactor = FresnelReflectAmountOpaque(isFrontFace ? 1 : _IOR, isFrontFace ? _IOR : 1, WorldRayDirection(), worldNormal);
+                float fresnelFactor = FresnelReflectAmountOpaque(isFrontFace ? 1 : _IOR, isFrontFace ? _IOR : 1, WorldRayDirection(), worldNormal);
 
-                    float specularChance = lerp(_Metallic, 1, fresnelFactor * _Smoothness);
+                float specularChance = lerp(_Metallic, 1, fresnelFactor * _Smoothness);
 
-                    // Calculate whether we are going to do a diffuse or specular reflection ray 
-                    float doSpecular = (RandomFloat01(payload.rngState) < specularChance) ? 1 : 0;
+                // Calculate whether we are going to do a diffuse or specular reflection ray 
+                float doSpecular = (RandomFloat01(payload.rngState) < specularChance) ? 1 : 0;
 
-                    // Get a cosine-weighted distribution by using the formula from https://www.iue.tuwien.ac.at/phd/ertl/node100.html
-                    float3 diffuseRayDir = normalize(worldNormal + RandomUnitVector(payload.rngState));
+                // Get a cosine-weighted distribution by using the formula from https://www.iue.tuwien.ac.at/phd/ertl/node100.html
+                float3 diffuseRayDir = normalize(worldNormal + RandomUnitVector(payload.rngState));
 
-                    float3 specularRayDir = reflect(WorldRayDirection(), worldNormal);
+                float3 specularRayDir = reflect(WorldRayDirection(), worldNormal);
               
-                    specularRayDir = normalize(lerp(diffuseRayDir, specularRayDir, _Smoothness));
+                specularRayDir = normalize(lerp(diffuseRayDir, specularRayDir, _Smoothness));
 
-                    float3 reflectedRayDir = lerp(diffuseRayDir, specularRayDir, doSpecular);
+                float3 reflectedRayDir = lerp(diffuseRayDir, specularRayDir, doSpecular);
 
-                    float3 worldPosition = mul(ObjectToWorld(), float4(v.position, 1)).xyz;
+                float3 worldPosition = mul(ObjectToWorld(), float4(v.position, 1)).xyz;
 
-                    // Bounced ray origin is pushed off of the surface using the face normal (not the interpolated normal).
-                    float3 e0 = v1.position - v0.position;
-                    float3 e1 = v2.position - v0.position;
+                // Bounced ray origin is pushed off of the surface using the face normal (not the interpolated normal).
+                float3 e0 = v1.position - v0.position;
+                float3 e1 = v2.position - v0.position;
 
-                    float3 worldFaceNormal = normalize(mul(cross(e0, e1), (float3x3)WorldToObject()));
+                float3 worldFaceNormal = normalize(mul(cross(e0, e1), (float3x3)WorldToObject()));
 
-                    RayDesc ray;
-                    ray.Origin      = worldPosition + K_RAY_ORIGIN_PUSH_OFF * worldFaceNormal;
-                    ray.Direction   = reflectedRayDir;
-                    ray.TMin        = 0;
-                    ray.TMax        = K_T_MAX;
+                float3 albedo = _Color.xyz * _MainTex.SampleLevel(sampler__MainTex, _MainTex_ST.xy * v.uv + _MainTex_ST.zw, 0).xyz;
 
-                    float3 albedo = _Color.xyz * _MainTex.SampleLevel(sampler__MainTex, _MainTex_ST.xy * v.uv + _MainTex_ST.zw, 0).xyz;
-                    float3 color = lerp(albedo, _SpecularColor.xyz, doSpecular);
-
-                    float3 throughput = payload.throughput * color;
-
-#if !_EMISSION
-                    // get the probability for choosing the ray type we chose
-                    float rayProbability = (doSpecular == 1.0f) ? specularChance : 1.0f - specularChance;
-
-                    // avoid numerical issues causing a divide by zero, or nearly so (more important later, when we add refraction)
-                    rayProbability = max(rayProbability, 0.001f);
-
-                    // since we chose randomly between diffuse and specular,
-                    // we need to account for the times we didn't do one or the other.
-                    throughput /= rayProbability;
-#endif
-                    
-                    float pathStopProbability = 1;
-
-#define ENABLE_RUSSIAN_ROULETTE 1
-
-#if !_EMISSION && ENABLE_RUSSIAN_ROULETTE
-                    pathStopProbability = max(throughput.r, max(throughput.g, throughput.b));
-
-                    // Dark colors have higher chance to terminate the path early.
-                    if (pathStopProbability < RandomFloat01(payload.rngState))
-                    {
-                        Result result;
-                        result.radiance = payload.radiance;
-
-                        CallShader(0, result);
-                        return;
-                    }
-#endif
-                   
-                    // Add the energy we lost caused by randomly terminating paths early using Russian Roulette.
-                    throughput *= 1 / pathStopProbability;
-
-                    RayPayload reflRayPayload;
-                    reflRayPayload.radiance                 = payload.radiance + payload.throughput * emissive;
-                    reflRayPayload.throughput               = throughput;
-                    reflRayPayload.bounceCountOpaque        = payload.bounceCountOpaque - 1;
-                    reflRayPayload.bounceCountTransparent   = payload.bounceCountTransparent;
-                    reflRayPayload.rngState                 = payload.rngState;
-
-                    uint missShaderIndex = 0;
-                    TraceRay(g_AccelStruct, 0, 0xFF, 0, 1, missShaderIndex, ray, reflRayPayload);
-                }
-                else
-                {
-                    Result result;
-                    result.radiance = payload.radiance + payload.throughput * emissive;
-                    CallShader(0, result);
-                }
+                payload.k                   = (doSpecular == 1) ? specularChance : 1 - specularChance;
+                payload.albedo              = lerp(albedo, _SpecularColor.xyz, doSpecular);
+                payload.emission            = emission;                
+                payload.bounceIndexOpaque   = payload.bounceIndexOpaque + 1;
+                payload.bounceRayOrigin     = worldPosition + K_RAY_ORIGIN_PUSH_OFF * worldFaceNormal;
+                payload.bounceRayDirection  = reflectedRayDir;
             }
 
             ENDHLSL
         }
-    
     }
 
     CustomEditor "PathTracingSimpleShaderGUI"
