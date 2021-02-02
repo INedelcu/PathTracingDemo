@@ -1,3 +1,5 @@
+#if UNITY_EDITOR
+
 using UnityEngine;
 using UnityEditor;
 public class PathTracingSimpleGlassShaderGUI : ShaderGUI
@@ -89,3 +91,5 @@ public class PathTracingSimpleGlassShaderGUI : ShaderGUI
         }
     }
 }
+
+#endif
