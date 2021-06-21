@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 802e0e4104f4e414fa8f25061684c824, type: 3}
+  m_Name: Default Raytracing Render Pipeline Asset
+  m_EditorClassIdentifier: 
+  bounceCountOpaque: 5
+  bounceCountTransparent: 8
+  rayTracingShader: {fileID: 4807578003741378534, guid: 25de828becd32954ba57c3fe01f040cf, type: 3}
+  envTexture: {fileID: 8900000, guid: 59eb7ff24f6630d469a4109caa03288f, type: 3}
