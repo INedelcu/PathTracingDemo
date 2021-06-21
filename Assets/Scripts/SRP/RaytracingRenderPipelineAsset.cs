@@ -18,11 +18,6 @@ public class RaytracingRenderPipelineAsset : RenderPipelineAsset
     // replace with environment from Lighting window.
     public Cubemap envTexture = null;
 
-    // Control instancing parameters (we replicate the entire scene for now)
-    [Min(0)]
-    public Vector2Int   instances = new Vector2Int(1, 1);
-    public Vector2      instanceSpacing = new Vector2(1, 1);
-
     // Unity calls this method before rendering the first frame.
     // If a setting on the Render Pipeline Asset changes, Unity destroys the current Render Pipeline Instance and calls this method again before rendering the next frame.
     protected override RenderPipeline CreatePipeline()
