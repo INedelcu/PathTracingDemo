@@ -212,6 +212,7 @@ Shader "PathTracing/Standard"
                 payload.bounceIndexOpaque   = payload.bounceIndexOpaque + 1;
                 payload.bounceRayOrigin     = worldPosition + K_RAY_ORIGIN_PUSH_OFF * worldFaceNormal;
                 payload.bounceRayDirection  = reflectedRayDir;
+                payload.lastWorldNormal     = worldNormal;
             }
 
             ENDHLSL
