@@ -11,24 +11,8 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
     public RaytracingRenderPipelineInstance(RaytracingRenderPipelineAsset asset)
     {
         renderPipelineAsset = asset;
-        RenderPipelineManager.beginContextRendering += OnBeginContextRendering;
-        CreateRayTracingAccelerationStructure();
-    }
-    void OnBeginContextRendering(ScriptableRenderContext context, List<Camera> cameras)
-    {
-        // Put the code that you want to execute at the start of RenderPipeline.Render here
     }
 
-    // void Dispose() TODO fix this
-    //{
-    //if (rayTracingAccelerationStructure != null)
-    //{
-    //    rayTracingAccelerationStructure.Release();
-    //    rayTracingAccelerationStructure = null;
-    //}
-    //    RenderPipelineManager.beginContextRendering -= OnBeginContextRendering;
-    //}
-    
     private uint cameraWidth = 0;
     private uint cameraHeight = 0;
     
@@ -40,21 +24,6 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
     private RenderTexture rayTracingOutput = null;
     
-    private RayTracingAccelerationStructure rayTracingAccelerationStructure = null;
-
-    private void CreateRayTracingAccelerationStructure()
-    {
-        if (rayTracingAccelerationStructure == null)
-        {
-            RayTracingAccelerationStructure.RASSettings settings = new RayTracingAccelerationStructure.RASSettings();
-            settings.rayTracingModeMask = RayTracingAccelerationStructure.RayTracingModeMask.Everything;
-            settings.managementMode = RayTracingAccelerationStructure.ManagementMode.Automatic;
-            settings.layerMask = 255;
-
-            rayTracingAccelerationStructure = new RayTracingAccelerationStructure(settings);
-        }
-    }
-
     private void ReleaseResources()
     {
         if (rayTracingOutput != null)
@@ -103,7 +72,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             convergenceStep = 0;
     }
 
-    protected override void Render (ScriptableRenderContext context, Camera[] cameras) 
+    protected override void Render (ScriptableRenderContext context, Camera[] cameras)
     {
         if (!SystemInfo.supportsRayTracing)
         {
@@ -114,7 +83,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
         // Create and schedule a command to clear the current render target
         var commandBuffer = new CommandBuffer();
         commandBuffer.ClearRenderTarget(true, true, Color.red); // remove this when everything works
-        commandBuffer.BuildRayTracingAccelerationStructure(rayTracingAccelerationStructure);
+        commandBuffer.BuildRayTracingAccelerationStructure(renderPipelineAsset.rayTracingAccelerationStructure);
 
         // Iterate over all Cameras
         foreach (Camera camera in cameras)
@@ -127,7 +96,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
                 return;
             }
             
-            if (rayTracingAccelerationStructure == null)
+            if (renderPipelineAsset.rayTracingAccelerationStructure == null)
                 return;
             
             // Get the culling parameters from the current Camera
@@ -176,7 +145,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             Shader.SetGlobalInt(Shader.PropertyToID("g_BounceCountTransparent"), (int)renderPipelineAsset.bounceCountTransparent);
 
             // Input
-            renderPipelineAsset.rayTracingShader.SetAccelerationStructure(Shader.PropertyToID("g_AccelStruct"), rayTracingAccelerationStructure);
+            renderPipelineAsset.rayTracingShader.SetAccelerationStructure(Shader.PropertyToID("g_AccelStruct"), renderPipelineAsset.rayTracingAccelerationStructure);
             renderPipelineAsset.rayTracingShader.SetFloat(Shader.PropertyToID("g_Zoom"), Mathf.Tan(Mathf.Deg2Rad * camera.fieldOfView * 0.5f));
             renderPipelineAsset.rayTracingShader.SetFloat(Shader.PropertyToID("g_AspectRatio"), cameraWidth / (float)cameraHeight);
             renderPipelineAsset.rayTracingShader.SetInt(Shader.PropertyToID("g_ConvergenceStep"), convergenceStep);
