@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
@@ -6,10 +7,27 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 {
     // Use this variable to a reference to the Render Pipeline Asset that was passed to the constructor
     private RaytracingRenderPipelineAsset renderPipelineAsset;
+
     public RaytracingRenderPipelineInstance(RaytracingRenderPipelineAsset asset)
     {
         renderPipelineAsset = asset;
+        RenderPipelineManager.beginContextRendering += OnBeginContextRendering;
+        CreateRayTracingAccelerationStructure();
     }
+    void OnBeginContextRendering(ScriptableRenderContext context, List<Camera> cameras)
+    {
+        // Put the code that you want to execute at the start of RenderPipeline.Render here
+    }
+
+    // void Dispose() TODO fix this
+    //{
+    //if (rayTracingAccelerationStructure != null)
+    //{
+    //    rayTracingAccelerationStructure.Release();
+    //    rayTracingAccelerationStructure = null;
+    //}
+    //    RenderPipelineManager.beginContextRendering -= OnBeginContextRendering;
+    //}
     
     private uint cameraWidth = 0;
     private uint cameraHeight = 0;
@@ -39,12 +57,6 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
     private void ReleaseResources()
     {
-        if (rayTracingAccelerationStructure != null)
-        {
-            rayTracingAccelerationStructure.Release();
-            rayTracingAccelerationStructure = null;
-        }
-
         if (rayTracingOutput != null)
         {
             rayTracingOutput.Release();
@@ -57,8 +69,6 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
     private void CreateResources(Camera camera)
     {
-        CreateRayTracingAccelerationStructure();
-
         if (cameraWidth != camera.pixelWidth || cameraHeight != camera.pixelHeight)
         {
             if (rayTracingOutput)
@@ -86,24 +96,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             convergenceStep = 0;
         }
     }
-
-    void OnDestroy()
-    {
-        ReleaseResources();
-    }
-
-    void OnDisable()
-    {
-        ReleaseResources();
-    }
-
-    private void OnEnable()
-    {
-        prevCameraMatrix = Camera.main.cameraToWorldMatrix;
-        prevBounceCountOpaque = renderPipelineAsset.bounceCountOpaque;
-        prevBounceCountTransparent = renderPipelineAsset.bounceCountTransparent;
-    }
-
+    
     private void Update()
     {
         if (Input.GetKeyDown("space"))
@@ -120,10 +113,8 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
         
         // Create and schedule a command to clear the current render target
         var commandBuffer = new CommandBuffer();
-        commandBuffer.ClearRenderTarget(true, true, Color.red);
-        
-        if (rayTracingAccelerationStructure != null)
-            rayTracingAccelerationStructure.Build();
+        commandBuffer.ClearRenderTarget(true, true, Color.red); // remove this when everything works
+        commandBuffer.BuildRayTracingAccelerationStructure(rayTracingAccelerationStructure);
 
         // Iterate over all Cameras
         foreach (Camera camera in cameras)
@@ -169,7 +160,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             {
                 context.DrawSkybox(camera);
             }
-
+            
             if (prevCameraMatrix != camera.cameraToWorldMatrix)
                 convergenceStep = 0;
 
