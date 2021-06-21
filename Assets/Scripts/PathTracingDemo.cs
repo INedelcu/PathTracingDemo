@@ -7,6 +7,8 @@ public class PathTracingDemo : MonoBehaviour
 {
     public RayTracingShader rayTracingShader = null;
 
+    public RayTracingShader rayTracingShaderGBuffer = null;
+
     public Cubemap envTexture = null;
 
     [Range(1, 100)]
@@ -19,7 +21,9 @@ public class PathTracingDemo : MonoBehaviour
     private uint cameraHeight = 0;
   
     private RenderTexture rayTracingOutput = null;
-    
+    private RenderTexture gBufferWorldNormals = null;
+    private RenderTexture gBufferIntersectionT = null;
+
     private RayTracingAccelerationStructure rayTracingAccelerationStructure = null;
 
     private void CreateRayTracingAccelerationStructure()
@@ -48,7 +52,19 @@ public class PathTracingDemo : MonoBehaviour
             rayTracingOutput.Release();
             rayTracingOutput = null;
         }
-     
+
+        if (gBufferWorldNormals != null)
+        {
+            gBufferWorldNormals.Release();
+            gBufferWorldNormals = null;
+        }
+
+        if (gBufferIntersectionT != null)
+        {
+            gBufferIntersectionT.Release();
+            gBufferIntersectionT = null;
+        }
+
         cameraWidth = 0;
         cameraHeight = 0;
     }
@@ -59,24 +75,68 @@ public class PathTracingDemo : MonoBehaviour
 
         if (cameraWidth != Camera.main.pixelWidth || cameraHeight != Camera.main.pixelHeight)
         {
-            if (rayTracingOutput)
-                rayTracingOutput.Release();
-
-            RenderTextureDescriptor rtDesc = new RenderTextureDescriptor()
             {
-                dimension = TextureDimension.Tex2D,
-                width = Camera.main.pixelWidth,
-                height = Camera.main.pixelHeight,
-                depthBufferBits = 0,
-                volumeDepth = 1,
-                msaaSamples = 1,
-                vrUsage = VRTextureUsage.OneEye,
-                graphicsFormat = GraphicsFormat.R32G32B32A32_SFloat,
-                enableRandomWrite = true,
-            };
+                if (rayTracingOutput)
+                    rayTracingOutput.Release();
 
-            rayTracingOutput = new RenderTexture(rtDesc);
-            rayTracingOutput.Create();
+                RenderTextureDescriptor rtDesc = new RenderTextureDescriptor()
+                {
+                    dimension = TextureDimension.Tex2D,
+                    width = Camera.main.pixelWidth,
+                    height = Camera.main.pixelHeight,
+                    depthBufferBits = 0,
+                    volumeDepth = 1,
+                    msaaSamples = 1,
+                    vrUsage = VRTextureUsage.OneEye,
+                    graphicsFormat = GraphicsFormat.R32G32B32A32_SFloat,
+                    enableRandomWrite = true,
+                };
+
+                rayTracingOutput = new RenderTexture(rtDesc);
+                rayTracingOutput.Create();
+            }
+
+            {
+                if (gBufferWorldNormals)
+                    gBufferWorldNormals.Release();
+
+                RenderTextureDescriptor rtDesc = new RenderTextureDescriptor()
+                {
+                    dimension = TextureDimension.Tex2D,
+                    width = Camera.main.pixelWidth,
+                    height = Camera.main.pixelHeight,
+                    depthBufferBits = 0,
+                    volumeDepth = 1,
+                    msaaSamples = 1,
+                    vrUsage = VRTextureUsage.OneEye,
+                    graphicsFormat = GraphicsFormat.R32G32B32A32_SFloat,
+                    enableRandomWrite = true,
+                };
+
+                gBufferWorldNormals = new RenderTexture(rtDesc);
+                gBufferWorldNormals.Create();
+            }
+
+            {
+                if (gBufferIntersectionT)
+                    gBufferIntersectionT.Release();
+
+                RenderTextureDescriptor rtDesc = new RenderTextureDescriptor()
+                {
+                    dimension = TextureDimension.Tex2D,
+                    width = Camera.main.pixelWidth,
+                    height = Camera.main.pixelHeight,
+                    depthBufferBits = 0,
+                    volumeDepth = 1,
+                    msaaSamples = 1,
+                    vrUsage = VRTextureUsage.OneEye,
+                    graphicsFormat = GraphicsFormat.R32_SFloat,
+                    enableRandomWrite = true,
+                };
+
+                gBufferIntersectionT = new RenderTexture(rtDesc);
+                gBufferIntersectionT.Create();
+            }
 
             cameraWidth = (uint)Camera.main.pixelWidth;
             cameraHeight = (uint)Camera.main.pixelHeight;
@@ -105,9 +165,16 @@ public class PathTracingDemo : MonoBehaviour
     [ImageEffectOpaque]
     void OnRenderImage(RenderTexture src, RenderTexture dest)
     {
-        if (!SystemInfo.supportsRayTracing || !rayTracingShader)
+        if (!SystemInfo.supportsRayTracing)
         {
-            Debug.Log("The RayTracing API is not supported by this GPU or by the current graphics API.");
+            Debug.LogError("The RayTracing API is not supported by this GPU or by the current graphics API.");
+            Graphics.Blit(src, dest);
+            return;
+        }
+
+        if (!rayTracingShader || !rayTracingShaderGBuffer)
+        {
+            Debug.LogError("A raytrace shader was not set in the script!");
             Graphics.Blit(src, dest);
             return;
         }
@@ -118,6 +185,24 @@ public class PathTracingDemo : MonoBehaviour
         // Not really needed per frame if the scene is static.
         rayTracingAccelerationStructure.Build();
 
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Generate GBuffer for denoising input.
+        rayTracingShaderGBuffer.SetShaderPass("PathTracingGBuffer");
+
+        // Input
+        rayTracingShaderGBuffer.SetAccelerationStructure(Shader.PropertyToID("g_AccelStruct"), rayTracingAccelerationStructure);
+        rayTracingShaderGBuffer.SetFloat(Shader.PropertyToID("g_Zoom"), Mathf.Tan(Mathf.Deg2Rad * Camera.main.fieldOfView * 0.5f));
+        rayTracingShaderGBuffer.SetFloat(Shader.PropertyToID("g_AspectRatio"), cameraWidth / (float)cameraHeight);
+
+        // Output
+        rayTracingShaderGBuffer.SetTexture(Shader.PropertyToID("g_WorldNormals"), gBufferWorldNormals);
+        rayTracingShaderGBuffer.SetTexture(Shader.PropertyToID("g_IntersectionT"), gBufferIntersectionT);
+
+        rayTracingShaderGBuffer.Dispatch("MainRayGenShader", (int)cameraWidth, (int)cameraHeight, 1, Camera.main);
+    
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Path tracing
         rayTracingShader.SetShaderPass("PathTracing");
 
         Shader.SetGlobalInt(Shader.PropertyToID("g_BounceCountOpaque"), (int)bounceCountOpaque);

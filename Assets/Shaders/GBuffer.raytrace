@@ -1,0 +1,56 @@
+#include "UnityShaderVariables.cginc"
+#include "GlobalResources.hlsl"
+#include "Utils.hlsl"
+#include "RayPayloadGBuffer.hlsl"
+
+#pragma max_recursion_depth 1
+
+// Input
+float                           g_Zoom;
+float                           g_AspectRatio;
+
+// Output
+RWTexture2D<float3>             g_WorldNormals;
+RWTexture2D<float>              g_IntersectionT;
+
+[shader("raygeneration")]
+void MainRayGenShader()
+{ 
+    uint2 launchIndex = uint2(DispatchRaysIndex().x, DispatchRaysDimensions().y - DispatchRaysIndex().y - 1);
+    uint2 launchDim = DispatchRaysDimensions().xy;
+
+    // Shoot rays through the center of a pixel.
+    float2 frameCoord = launchIndex + float2(0.5, 0.5);
+
+    float2 ndcCoords = frameCoord  / float2(launchDim.x - 1, launchDim.y - 1);
+        
+    ndcCoords = ndcCoords * 2 - float2(1, 1);
+    ndcCoords = ndcCoords * g_Zoom;
+
+    // Get a ray in view space.
+    float3 viewDirection = normalize(float3(ndcCoords.x * g_AspectRatio, ndcCoords.y, 1));
+
+    // Rotate the ray from view space to world space.
+    float3 rayDirection = mul((float3x3)unity_CameraToWorld, viewDirection);
+    
+    RayDesc ray;
+    ray.Origin      = _WorldSpaceCameraPos;
+    ray.Direction   = rayDirection;
+    ray.TMin        = 0;
+    ray.TMax        = K_T_MAX;
+              
+    RayPayloadGBuffer payload;
+    payload.worldNormal = float3(0, 0, 0);
+    payload.intersectionT = K_T_MAX;
+   
+    uint missShaderIndex = 0;
+    TraceRay(g_AccelStruct, 0, 0xFF, 0, 1, missShaderIndex, ray, payload);
+  
+    g_WorldNormals[launchIndex] = float4(payload.worldNormal, 1);
+    g_IntersectionT[launchIndex] = payload.intersectionT;
+}
+
+[shader("miss")]
+void MainMissShader0(inout RayPayloadGBuffer payload : SV_RayPayload)
+{
+}
