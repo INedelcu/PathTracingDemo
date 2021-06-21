@@ -22,15 +22,13 @@ void MainRayGenShader()
     uint2 launchIndex = uint2(DispatchRaysIndex().x, DispatchRaysDimensions().y - DispatchRaysIndex().y - 1);
     uint2 launchDim = DispatchRaysDimensions().xy;
 
-    // Shoot rays through the center of a pixel (plus a jitter).
+    // Shoot rays through the center of a pixel.
     float2 frameCoord = launchIndex + float2(0.5, 0.5);
 
     // Initial random number generator seed for this pixel. The rngState will change every time we draw a random number.
-    uint rngState = uint(uint(launchIndex.x) * uint(1973) + uint(launchIndex.y) * uint(9277) + uint(g_FrameIndex) * uint(26699)) | uint(1);
-   
-    float2 jitter = float2(RandomFloat01(rngState), RandomFloat01(rngState)) - float2(0.5, 0.5);
+    uint rngState = uint(uint(launchIndex.x) * uint(1973) + uint(launchIndex.y) * uint(9277) + uint(g_FrameIndex) * uint(26699)) | uint(1);   
 
-    float2 ndcCoords = (frameCoord + jitter) / float2(launchDim.x - 1, launchDim.y - 1);
+    float2 ndcCoords = frameCoord  / float2(launchDim.x - 1, launchDim.y - 1);
         
     ndcCoords = ndcCoords * 2 - float2(1, 1);
     ndcCoords = ndcCoords * g_Zoom;
