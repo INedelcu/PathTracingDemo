@@ -16,10 +16,37 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
         {
             RayTracingAccelerationStructure.RASSettings settings = new RayTracingAccelerationStructure.RASSettings();
             settings.rayTracingModeMask = RayTracingAccelerationStructure.RayTracingModeMask.Everything;
-            settings.managementMode = RayTracingAccelerationStructure.ManagementMode.Automatic;
             settings.layerMask = 255;
 
+            bool useInstancing = !renderPipelineAsset.instances.Equals(new Vector2Int(1, 1));
+            if (useInstancing)
+                settings.managementMode = RayTracingAccelerationStructure.ManagementMode.Manual;
+            else
+                settings.managementMode = RayTracingAccelerationStructure.ManagementMode.Automatic;
+
             rayTracingAccelerationStructure = new RayTracingAccelerationStructure(settings);
+
+            if (useInstancing)
+            {
+                var rendererArray = UnityEngine.GameObject.FindObjectsOfType<MeshRenderer>();
+
+                for (var i = 0; i < rendererArray.Length; i++)
+                {
+                    var transform = rendererArray[i].GetComponent<Transform>();
+                    for (var j = 0; j < renderPipelineAsset.instances.x; j++)
+                    {
+                        for (var k = 0; k < renderPipelineAsset.instances.y; k++)
+                        {
+                            var instance = Object.Instantiate(rendererArray[i]);
+                            instance.hideFlags = HideFlags.HideAndDontSave;
+                            instance.gameObject.hideFlags = HideFlags.HideAndDontSave;
+                            instance.gameObject.transform.position = transform.position + new Vector3(j * renderPipelineAsset.instanceSpacing.x, 0, k * renderPipelineAsset.instanceSpacing.y);
+                            instance.gameObject.transform.localScale = transform.localScale;
+                            rayTracingAccelerationStructure.AddInstance(instance);
+                        }
+                    }
+                }
+            }
         }
     }
 

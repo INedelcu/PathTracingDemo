@@ -593,11 +593,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1181d5e53d6bff948be4a39ccb8c4de8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  rayTracingShader: {fileID: 4807578003741378534, guid: 25de828becd32954ba57c3fe01f040cf, type: 3}
-  rayTracingShaderGBuffer: {fileID: 4807578003741378534, guid: 1dd6bf4c50bbed94daca16900d49ecc2, type: 3}
-  envTexture: {fileID: 8900000, guid: 59eb7ff24f6630d469a4109caa03288f, type: 3}
-  bounceCountOpaque: 8
-  bounceCountTransparent: 10
 --- !u!1 &870335342
 GameObject:
   m_ObjectHideFlags: 0
@@ -772,7 +767,7 @@ Transform:
   m_GameObject: {fileID: 7617756035028518542}
   m_LocalRotation: {x: -0.7071068, y: 0, z: -0, w: 0.7071068}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 10, y: 10, z: 10}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 543450652824037995}
@@ -787,7 +782,7 @@ Transform:
   m_GameObject: {fileID: 919132148822683857}
   m_LocalRotation: {x: 0, y: -0.9750332, z: 0, w: 0.22205912}
   m_LocalPosition: {x: -1.114, y: 1.509, z: 0.709}
-  m_LocalScale: {x: 10, y: 10, z: 10}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 512828562010870403}
@@ -803,7 +798,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 919132149114954934}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: -0.04}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1174,7 +1169,7 @@ Transform:
   m_GameObject: {fileID: 8313630292452248415}
   m_LocalRotation: {x: -0.7071068, y: 0, z: -0, w: 0.7071068}
   m_LocalPosition: {x: -0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 10, y: 10, z: 10}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 543450652824037995}
