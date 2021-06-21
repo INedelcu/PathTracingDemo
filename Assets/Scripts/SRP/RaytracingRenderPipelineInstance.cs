@@ -32,7 +32,6 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
                 for (var i = 0; i < rendererArray.Length; i++)
                 {
-                    var transform = rendererArray[i].GetComponent<Transform>();
                     for (var j = 0; j < renderPipelineAsset.instances.x; j++)
                     {
                         for (var k = 0; k < renderPipelineAsset.instances.y; k++)
@@ -40,8 +39,9 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
                             var instance = Object.Instantiate(rendererArray[i]);
                             instance.hideFlags = HideFlags.HideAndDontSave;
                             instance.gameObject.hideFlags = HideFlags.HideAndDontSave;
-                            instance.gameObject.transform.position = transform.position + new Vector3(j * renderPipelineAsset.instanceSpacing.x, 0, k * renderPipelineAsset.instanceSpacing.y);
-                            instance.gameObject.transform.localScale = transform.localScale;
+                            instance.gameObject.transform.position = rendererArray[i].transform.position + new Vector3(j * renderPipelineAsset.instanceSpacing.x, 0, k * renderPipelineAsset.instanceSpacing.y);
+                            // Note: this will probably not work on every scene.
+                            instance.gameObject.transform.localScale = rendererArray[i].transform.lossyScale;
                             rayTracingAccelerationStructure.AddInstance(instance);
                         }
                     }
