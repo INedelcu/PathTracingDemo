@@ -119,10 +119,11 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
         }
         
         // Create and schedule a command to clear the current render target
-        var cmd = new CommandBuffer();
-        cmd.ClearRenderTarget(true, true, Color.red);
-        context.ExecuteCommandBuffer(cmd);
-        cmd.Release();
+        var commandBuffer = new CommandBuffer();
+        commandBuffer.ClearRenderTarget(true, true, Color.red);
+        
+        if (rayTracingAccelerationStructure != null)
+            rayTracingAccelerationStructure.Build();
 
         // Iterate over all Cameras
         foreach (Camera camera in cameras)
@@ -169,7 +170,6 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
                 context.DrawSkybox(camera);
             }
 
-            
             if (prevCameraMatrix != camera.cameraToWorldMatrix)
                 convergenceStep = 0;
 
@@ -178,9 +178,6 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
             if (prevBounceCountTransparent != renderPipelineAsset.bounceCountTransparent)
                 convergenceStep = 0;
-
-            // Not really needed per frame if the scene is static.
-            rayTracingAccelerationStructure.Build();
 
             renderPipelineAsset.rayTracingShader.SetShaderPass("PathTracing");
 
@@ -198,9 +195,9 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             // Output
             renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_Radiance"), rayTracingOutput);       
 
-            renderPipelineAsset.rayTracingShader.Dispatch("MainRayGenShader", (int)cameraWidth, (int)cameraHeight, 1, camera);
+            commandBuffer.DispatchRays(renderPipelineAsset.rayTracingShader, "MainRayGenShader", cameraWidth, cameraHeight, 1, camera);
            
-            //Graphics.Blit(rayTracingOutput, dest);
+            commandBuffer.Blit(rayTracingOutput, camera.activeTexture);
 
             convergenceStep++;
 
@@ -209,6 +206,8 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             prevBounceCountTransparent  = renderPipelineAsset.bounceCountTransparent;
             
             // Instruct the graphics API to perform all scheduled commands
+            context.ExecuteCommandBuffer(commandBuffer);
+            commandBuffer.Release();
             context.Submit();
             
             ReleaseResources();
