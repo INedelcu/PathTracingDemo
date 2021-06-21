@@ -9,7 +9,6 @@
 // Input
 float                           g_Zoom;
 float                           g_AspectRatio;
-uint                            g_ConvergenceStep;
 uint                            g_FrameIndex;
 TextureCube<float4>             g_EnvTex;
 SamplerState                    sampler_g_EnvTex;
@@ -27,7 +26,7 @@ void MainRayGenShader()
     float2 frameCoord = launchIndex + float2(0.5, 0.5);
 
     // Initial random number generator seed for this pixel. The rngState will change every time we draw a random number.
-    uint rngState = uint(uint(launchIndex.x) * uint(1973) + uint(launchIndex.y) * uint(9277) + uint(g_ConvergenceStep + g_FrameIndex) * uint(26699)) | uint(1);
+    uint rngState = uint(uint(launchIndex.x) * uint(1973) + uint(launchIndex.y) * uint(9277) + uint(g_FrameIndex) * uint(26699)) | uint(1);
    
     float2 jitter = float2(RandomFloat01(rngState), RandomFloat01(rngState)) - float2(0.5, 0.5);
 
@@ -91,13 +90,9 @@ void MainRayGenShader()
         ray.Origin      = payload.bounceRayOrigin;
         ray.Direction   = payload.bounceRayDirection;
     }
-    while ((payload.bounceIndexOpaque <= g_BounceCountOpaque) && (payload.bounceIndexTransparent <= g_BounceCountTransparent) && (++safeNet < 1000));
+    while ((payload.bounceIndexOpaque <= g_BounceCountOpaque) && (payload.bounceIndexTransparent <= g_BounceCountTransparent) && (++safeNet < 1000));  
 
-    float3 prevRadiance = g_Radiance[launchIndex].xyz;
-
-    float3 result = lerp(prevRadiance, radiance, 1 / float(g_ConvergenceStep + 1));
-
-    g_Radiance[launchIndex] = float4(result, 1);
+    g_Radiance[launchIndex] = float4(radiance, 1);
 }
 
 [shader("miss")]

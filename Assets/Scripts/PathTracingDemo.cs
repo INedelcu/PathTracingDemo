@@ -17,13 +17,7 @@ public class PathTracingDemo : MonoBehaviour
     
     private uint cameraWidth = 0;
     private uint cameraHeight = 0;
-    
-    private int convergenceStep = 0;
-
-    private Matrix4x4 prevCameraMatrix;
-    private uint prevBounceCountOpaque = 0;
-    private uint prevBounceCountTransparent = 0;
-
+  
     private RenderTexture rayTracingOutput = null;
     
     private RayTracingAccelerationStructure rayTracingAccelerationStructure = null;
@@ -86,8 +80,6 @@ public class PathTracingDemo : MonoBehaviour
 
             cameraWidth = (uint)Camera.main.pixelWidth;
             cameraHeight = (uint)Camera.main.pixelHeight;
-
-            convergenceStep = 0;
         }
     }
 
@@ -103,17 +95,11 @@ public class PathTracingDemo : MonoBehaviour
 
     private void OnEnable()
     {
-        prevCameraMatrix = Camera.main.cameraToWorldMatrix;
-        prevBounceCountOpaque = bounceCountOpaque;
-        prevBounceCountTransparent = bounceCountTransparent;
     }
 
     private void Update()
     {
         CreateResources();
-
-        if (Input.GetKeyDown("space"))
-            convergenceStep = 0;
     }
 
     [ImageEffectOpaque]
@@ -128,16 +114,7 @@ public class PathTracingDemo : MonoBehaviour
 
         if (rayTracingAccelerationStructure == null)
             return;
-
-        if (prevCameraMatrix != Camera.main.cameraToWorldMatrix)
-            convergenceStep = 0;
-
-        if (prevBounceCountOpaque != bounceCountOpaque)
-            convergenceStep = 0;
-
-        if (prevBounceCountTransparent != bounceCountTransparent)
-            convergenceStep = 0;
-
+        
         // Not really needed per frame if the scene is static.
         rayTracingAccelerationStructure.Build();
 
@@ -150,7 +127,6 @@ public class PathTracingDemo : MonoBehaviour
         rayTracingShader.SetAccelerationStructure(Shader.PropertyToID("g_AccelStruct"), rayTracingAccelerationStructure);
         rayTracingShader.SetFloat(Shader.PropertyToID("g_Zoom"), Mathf.Tan(Mathf.Deg2Rad * Camera.main.fieldOfView * 0.5f));
         rayTracingShader.SetFloat(Shader.PropertyToID("g_AspectRatio"), cameraWidth / (float)cameraHeight);
-        rayTracingShader.SetInt(Shader.PropertyToID("g_ConvergenceStep"), convergenceStep);
         rayTracingShader.SetInt(Shader.PropertyToID("g_FrameIndex"), Time.frameCount);
         rayTracingShader.SetTexture(Shader.PropertyToID("g_EnvTex"), envTexture);
 
@@ -160,11 +136,5 @@ public class PathTracingDemo : MonoBehaviour
         rayTracingShader.Dispatch("MainRayGenShader", (int)cameraWidth, (int)cameraHeight, 1, Camera.main);
        
         Graphics.Blit(rayTracingOutput, dest);
-
-        convergenceStep++;
-
-        prevCameraMatrix            = Camera.main.cameraToWorldMatrix;
-        prevBounceCountOpaque       = bounceCountOpaque;
-        prevBounceCountTransparent  = bounceCountTransparent;
     }
 }
