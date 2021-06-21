@@ -7,10 +7,10 @@ using UnityEngine.Rendering;
 public class RaytracingRenderPipelineAsset : RenderPipelineAsset
 {
     [Range(1, 100)]
-    public uint bounceCountOpaque = 5;
+    public int bounceCountOpaque = 5;
     
     [Range(1, 100)]
-    public uint bounceCountTransparent = 8;
+    public int bounceCountTransparent = 8;
 
     public RayTracingShader rayTracingShader = null;
     public RayTracingShader rayTracingShaderGBuffer = null;

@@ -127,16 +127,21 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
     protected override void Render (ScriptableRenderContext context, Camera[] cameras)
     {
+        var commandBuffer = new CommandBuffer();
         if (!SystemInfo.supportsRayTracing)
         {
             Debug.Log("The RayTracing API is not supported by this GPU or by the current graphics API.");
+            commandBuffer.ClearRenderTarget(true, true, Color.magenta);
+            context.ExecuteCommandBuffer(commandBuffer);
+            commandBuffer.Release();
+            context.Submit();
             return;
         }
         
-        // Create and schedule a command to clear the current render target
-        var commandBuffer = new CommandBuffer();
-        commandBuffer.ClearRenderTarget(true, true, Color.red); // remove this when everything works
         commandBuffer.BuildRayTracingAccelerationStructure(rayTracingAccelerationStructure);
+        
+        commandBuffer.SetGlobalInteger(Shader.PropertyToID("g_BounceCountOpaque"), renderPipelineAsset.bounceCountOpaque);
+        commandBuffer.SetGlobalInteger(Shader.PropertyToID("g_BounceCountTransparent"), renderPipelineAsset.bounceCountTransparent);
 
         // Iterate over all Cameras
         foreach (Camera camera in cameras)
@@ -155,12 +160,6 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             // Update the value of built-in shader variables, based on the current Camera
             context.SetupCameraProperties(camera);
 
-            // Schedule a command to draw the Skybox if required
-            if (camera.clearFlags == CameraClearFlags.Skybox && RenderSettings.skybox != null)
-            {
-                context.DrawSkybox(camera);
-            }
-            
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             // Generate GBuffer for denoising input.
             renderPipelineAsset.rayTracingShaderGBuffer.SetShaderPass("PathTracingGBuffer");
@@ -180,9 +179,6 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             // Path tracing
             renderPipelineAsset.rayTracingShader.SetShaderPass("PathTracing");
-
-            Shader.SetGlobalInt(Shader.PropertyToID("g_BounceCountOpaque"), (int)renderPipelineAsset.bounceCountOpaque);
-            Shader.SetGlobalInt(Shader.PropertyToID("g_BounceCountTransparent"), (int)renderPipelineAsset.bounceCountTransparent);
 
             // Input
             renderPipelineAsset.rayTracingShader.SetAccelerationStructure(Shader.PropertyToID("g_AccelStruct"), rayTracingAccelerationStructure);
