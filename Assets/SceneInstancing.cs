@@ -2,17 +2,25 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+[ExecuteInEditMode]
 public class SceneInstancing : MonoBehaviour
 {
     // Control instancing parameters (we replicate the entire scene for now)
-    [Min(0)]
+    [Min(1)]
     public Vector2Int instances = new Vector2Int(1, 1);
     public Vector2 instanceSpacing = new Vector2(1, 1);
 
     List<MeshRenderer> instancedRenderes = new List<MeshRenderer>(1024);
+    int numRenderers = 0;
 
     // Start is called before the first frame update
     void Start()
+    {
+        ClearInstances();
+        InitInstances();
+    }
+
+    void InitInstances()
     {
         bool useInstancing = !instances.Equals(new Vector2Int(1, 1));
 
@@ -38,21 +46,33 @@ public class SceneInstancing : MonoBehaviour
                     }
                 }
             }
+
+            numRenderers = rendererArray.Length;
         }
     }
 
     // Update is called once per frame
     void Update()
     {
-        
+        // Check if the instance count has changed
+        if (instancedRenderes.Count != instances.x * instances.y * numRenderers)
+        {
+            ClearInstances();
+            InitInstances();
+        }
     }
 
-    void OnDestroy()
+    void ClearInstances()
     {
-        for(int i=0; i< instancedRenderes.Count; ++i)
+        for (int i = 0; i < instancedRenderes.Count; ++i)
         {
             DestroyImmediate(instancedRenderes[i]);
         }
         instancedRenderes.Clear();
+    }
+
+    void OnDestroy()
+    {
+        ClearInstances();
     }
 }
