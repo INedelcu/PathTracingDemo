@@ -36,12 +36,6 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
     private uint cameraWidth = 0;
     private uint cameraHeight = 0;
     
-    private int convergenceStep = 0;
-
-    private Matrix4x4 prevCameraMatrix;
-    private uint prevBounceCountOpaque = 0;
-    private uint prevBounceCountTransparent = 0;
-
     private RenderTexture rayTracingOutput = null;
     
     public RayTracingAccelerationStructure rayTracingAccelerationStructure = null;
@@ -83,15 +77,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
             cameraWidth = (uint)camera.pixelWidth;
             cameraHeight = (uint)camera.pixelHeight;
-
-            convergenceStep = 0;
         }
-    }
-    
-    private void Update()
-    {
-        if (Input.GetKeyDown("space"))
-            convergenceStep = 0;
     }
 
     protected override void Render (ScriptableRenderContext context, Camera[] cameras)
@@ -130,15 +116,6 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
                 context.DrawSkybox(camera);
             }
             
-            if (prevCameraMatrix != camera.cameraToWorldMatrix)
-                convergenceStep = 0;
-
-            if (prevBounceCountOpaque != renderPipelineAsset.bounceCountOpaque)
-                convergenceStep = 0;
-
-            if (prevBounceCountTransparent != renderPipelineAsset.bounceCountTransparent)
-                convergenceStep = 0;
-
             renderPipelineAsset.rayTracingShader.SetShaderPass("PathTracing");
 
             Shader.SetGlobalInt(Shader.PropertyToID("g_BounceCountOpaque"), (int)renderPipelineAsset.bounceCountOpaque);
@@ -148,7 +125,6 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             renderPipelineAsset.rayTracingShader.SetAccelerationStructure(Shader.PropertyToID("g_AccelStruct"), rayTracingAccelerationStructure);
             renderPipelineAsset.rayTracingShader.SetFloat(Shader.PropertyToID("g_Zoom"), Mathf.Tan(Mathf.Deg2Rad * camera.fieldOfView * 0.5f));
             renderPipelineAsset.rayTracingShader.SetFloat(Shader.PropertyToID("g_AspectRatio"), cameraWidth / (float)cameraHeight);
-            renderPipelineAsset.rayTracingShader.SetInt(Shader.PropertyToID("g_ConvergenceStep"), convergenceStep);
             renderPipelineAsset.rayTracingShader.SetInt(Shader.PropertyToID("g_FrameIndex"), Time.frameCount);
             renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_EnvTex"), renderPipelineAsset.envTexture);
 
@@ -158,12 +134,6 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             commandBuffer.DispatchRays(renderPipelineAsset.rayTracingShader, "MainRayGenShader", cameraWidth, cameraHeight, 1, camera);
            
             commandBuffer.Blit(rayTracingOutput, camera.activeTexture);
-
-            convergenceStep++;
-
-            prevCameraMatrix            = camera.cameraToWorldMatrix;
-            prevBounceCountOpaque       = renderPipelineAsset.bounceCountOpaque;
-            prevBounceCountTransparent  = renderPipelineAsset.bounceCountTransparent;
             
             // Instruct the graphics API to perform all scheduled commands
             context.ExecuteCommandBuffer(commandBuffer);
