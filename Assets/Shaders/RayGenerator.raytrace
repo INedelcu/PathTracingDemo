@@ -82,6 +82,9 @@ void MainRayGenShader()
         }
         else
         {
+            // Accumulate emission from hit object
+            radiance += payload.emission * throughput;
+            
             throughput *= payload.albedo / max(0.001, payload.k);
             
             // Directionnal light sampling
