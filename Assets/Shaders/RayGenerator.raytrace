@@ -62,6 +62,7 @@ void MainRayGenShader()
     payload.bounceRayDirection      = float3(0, 0, 0);
     payload.lastWorldNormal         = float3(0, 0, 0);
     payload.k                       = 1;
+    payload.isShadowRay             = false;
 
     // Safe net for when shaders have compilation errors and don't increase the bounce index, resulting in an infinite loop.
     uint safeNet = 0;
@@ -73,51 +74,38 @@ void MainRayGenShader()
     {
         TraceRay(g_AccelStruct, 0, 0xFF, 0, 1, missShaderIndex, ray, payload);
 
-        RayPayload payLoadShadow;
-        payLoadShadow.bounceIndexOpaque       = 0;
-        payLoadShadow.emission                = float3(0,0,0);
-
-        if(payload.bounceIndexOpaque == -1)
-        {
-            payload.emission = g_EnvTex.SampleLevel(sampler_g_EnvTex, ray.Direction, 0).xyz;
-            //payload.emission = float3(0,0,0);
-
-            radiance += payload.emission * throughput;
-            break;
-        }
-        else
-        {
-            // Accumulate emission from hit object
-            radiance += payload.emission * throughput;
+        // Accumulate emission from hit object
+        radiance += payload.emission * throughput;
             
-            throughput *= payload.albedo / max(0.001, payload.k);
+        throughput *= payload.albedo / max(0.001, payload.k);
             
-            if(g_UseDirectionalLight > 0)
+        if(g_UseDirectionalLight > 0)
+        {
+            // Directionnal light sampling
+            RayDesc shadowRay;
+            shadowRay.Origin      = payload.bounceRayOrigin;
+            shadowRay.Direction   = -g_DirectionalLight.xyz;
+            shadowRay.TMin        = 0;
+            shadowRay.TMax        = K_T_MAX;
+
+            RayPayload payLoadShadow;
+            payLoadShadow.bounceIndexOpaque       = 0;
+            payLoadShadow.emission                = float3(0,0,0);
+            payLoadShadow.isShadowRay             = true;
+                
+            if(g_DirectionalLightShadows > 0)
             {
+                // Trace shadow ray
+                TraceRay(g_AccelStruct, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, 0xFF, 0, 1, missShaderIndex, shadowRay, payLoadShadow);
+            }
+            else
+            {
+                payLoadShadow.bounceIndexOpaque = -1;
+            }
 
-                // Directionnal light sampling            
-                RayDesc shadowRay;
-                shadowRay.Origin      = payload.bounceRayOrigin;
-                shadowRay.Direction   = -g_DirectionalLight.xyz;
-                shadowRay.TMin        = 0;
-                shadowRay.TMax        = K_T_MAX;
-                
-                if(g_DirectionalLightShadows > 0)
-                {
-                    // Trace shadow ray
-                    TraceRay(g_AccelStruct, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, 0xFF, 0, 1, missShaderIndex, shadowRay, payLoadShadow);
-                }
-                else
-                {
-                    payLoadShadow.bounceIndexOpaque = -1;
-                }
-                
-
-                if(payLoadShadow.bounceIndexOpaque == -1)
-                {
-                    payLoadShadow.emission                = saturate(dot(-g_DirectionalLight.xyz,payload.lastWorldNormal)) * g_DirectionalLightColor.xyz;
-                    radiance += payLoadShadow.emission * throughput;
-                }
+            if(payLoadShadow.bounceIndexOpaque == -1)
+            {
+                radiance += saturate(dot(-g_DirectionalLight.xyz,payload.lastWorldNormal)) * g_DirectionalLightColor.xyz * throughput;
             }
         }
 
@@ -146,6 +134,6 @@ void MainRayGenShader()
 [shader("miss")]
 void MainMissShader0(inout RayPayload payload : SV_RayPayload)
 {
-    //payload.emission                = g_EnvTex.SampleLevel(sampler_g_EnvTex, WorldRayDirection(), 0).xyz;
+    payload.emission                = !payload.isShadowRay ? g_EnvTex.SampleLevel(sampler_g_EnvTex, WorldRayDirection(), 0).xyz : float3(0, 0, 0);
     payload.bounceIndexOpaque       = -1;
 }

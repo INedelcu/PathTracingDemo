@@ -9,4 +9,5 @@ struct RayPayload
     float3 bounceRayDirection;
     float3 lastWorldNormal;
     uint rngState;          // Random number generator state.
+    bool isShadowRay;
 };
