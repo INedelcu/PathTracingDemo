@@ -11,8 +11,9 @@ public class RaytracingRenderPipelineAsset : RenderPipelineAsset
     
     [Range(1, 100)]
     public uint bounceCountTransparent = 8;
-    
+
     public RayTracingShader rayTracingShader = null;
+    public RayTracingShader rayTracingShaderGBuffer = null;
     
     // replace with environment from Lighting window.
     public Cubemap envTexture = null;
@@ -21,8 +22,6 @@ public class RaytracingRenderPipelineAsset : RenderPipelineAsset
     // If a setting on the Render Pipeline Asset changes, Unity destroys the current Render Pipeline Instance and calls this method again before rendering the next frame.
     protected override RenderPipeline CreatePipeline()
     {
-        
-            
         // Instantiate the Render Pipeline that this custom SRP uses for rendering.
         return new RaytracingRenderPipelineInstance(this);
     }
