@@ -52,7 +52,6 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             gBufferWorldNormals.Release();
             gBufferWorldNormals = null;
         }
-
         if (gBufferIntersectionT != null)
         {
             gBufferIntersectionT.Release();
@@ -192,14 +191,16 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
             commandBuffer.DispatchRays(renderPipelineAsset.rayTracingShader, "MainRayGenShader", (uint)camera.pixelWidth, (uint)camera.pixelHeight, 1, camera);
            
-            commandBuffer.Blit(rayTracingOutput, camera.activeTexture);
+            // Plug in denoiser here.
             
+            commandBuffer.Blit(rayTracingOutput, camera.activeTexture);
+
             // Instruct the graphics API to perform all scheduled commands
             context.ExecuteCommandBuffer(commandBuffer);
-            commandBuffer.Release();
             context.Submit();
             
             ReleaseResources();
         }
+        commandBuffer.Release();
     }
 }
