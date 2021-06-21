@@ -12,6 +12,11 @@ float                           g_AspectRatio;
 uint                            g_FrameIndex;
 TextureCube<float4>             g_EnvTex;
 SamplerState                    sampler_g_EnvTex;
+float4                          g_DirectionalLight;
+float4                          g_DirectionalLightColor;
+int                             g_UseDirectionalLight;
+int                             g_DirectionalLightShadows;
+
 
 // Output
 RWTexture2D<float4>             g_Radiance;
@@ -87,24 +92,32 @@ void MainRayGenShader()
             
             throughput *= payload.albedo / max(0.001, payload.k);
             
-            // Directionnal light sampling
-            //float3 dirLightColor = float3(0,0,0);
-            float3 dirLightColor = float3(0.5, 0.5, 0.5);
-            float3 dirLight = normalize(float3(0,-1,1));
-            
-            RayDesc shadowRay;
-            shadowRay.Origin      = payload.bounceRayOrigin;
-            shadowRay.Direction   = -dirLight;
-            shadowRay.TMin        = 0;
-            shadowRay.TMax        = K_T_MAX;
-            
-            // Trace shadow ray
-            TraceRay(g_AccelStruct, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, 0xFF, 0, 1, missShaderIndex, shadowRay, payLoadShadow);
-
-            if(payLoadShadow.bounceIndexOpaque == -1)
+            if(g_UseDirectionalLight > 0)
             {
-                payLoadShadow.emission                = saturate(dot(-dirLight,payload.lastWorldNormal)) * dirLightColor;
-                radiance += payLoadShadow.emission * throughput;
+
+                // Directionnal light sampling            
+                RayDesc shadowRay;
+                shadowRay.Origin      = payload.bounceRayOrigin;
+                shadowRay.Direction   = -g_DirectionalLight.xyz;
+                shadowRay.TMin        = 0;
+                shadowRay.TMax        = K_T_MAX;
+                
+                if(g_DirectionalLightShadows > 0)
+                {
+                    // Trace shadow ray
+                    TraceRay(g_AccelStruct, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, 0xFF, 0, 1, missShaderIndex, shadowRay, payLoadShadow);
+                }
+                else
+                {
+                    payLoadShadow.bounceIndexOpaque = -1;
+                }
+                
+
+                if(payLoadShadow.bounceIndexOpaque == -1)
+                {
+                    payLoadShadow.emission                = saturate(dot(-g_DirectionalLight.xyz,payload.lastWorldNormal)) * g_DirectionalLightColor.xyz;
+                    radiance += payLoadShadow.emission * throughput;
+                }
             }
         }
 
