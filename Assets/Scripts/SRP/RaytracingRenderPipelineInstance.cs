@@ -28,6 +28,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
             if (useInstancing)
             {
+                // TODO: instancing will not work properly when changing scenes! For now if instancing is active, we have to close the editor and open it again when changing scenes. 
                 var rendererArray = UnityEngine.GameObject.FindObjectsOfType<MeshRenderer>();
 
                 for (var i = 0; i < rendererArray.Length; i++)
