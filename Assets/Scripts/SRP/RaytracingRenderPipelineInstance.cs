@@ -11,8 +11,28 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
     public RaytracingRenderPipelineInstance(RaytracingRenderPipelineAsset asset)
     {
         renderPipelineAsset = asset;
+        
+        if (rayTracingAccelerationStructure == null)
+        {
+            RayTracingAccelerationStructure.RASSettings settings = new RayTracingAccelerationStructure.RASSettings();
+            settings.rayTracingModeMask = RayTracingAccelerationStructure.RayTracingModeMask.Everything;
+            settings.managementMode = RayTracingAccelerationStructure.ManagementMode.Automatic;
+            settings.layerMask = 255;
+
+            rayTracingAccelerationStructure = new RayTracingAccelerationStructure(settings);
+        }
     }
 
+    protected override void Dispose(bool disposing)
+    {
+        if (rayTracingAccelerationStructure != null)
+        {
+            rayTracingAccelerationStructure.Release();
+            rayTracingAccelerationStructure = null;
+        }
+        ReleaseResources();
+    }
+    
     private uint cameraWidth = 0;
     private uint cameraHeight = 0;
     
@@ -23,6 +43,8 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
     private uint prevBounceCountTransparent = 0;
 
     private RenderTexture rayTracingOutput = null;
+    
+    public RayTracingAccelerationStructure rayTracingAccelerationStructure = null;
     
     private void ReleaseResources()
     {
@@ -83,7 +105,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
         // Create and schedule a command to clear the current render target
         var commandBuffer = new CommandBuffer();
         commandBuffer.ClearRenderTarget(true, true, Color.red); // remove this when everything works
-        commandBuffer.BuildRayTracingAccelerationStructure(renderPipelineAsset.rayTracingAccelerationStructure);
+        commandBuffer.BuildRayTracingAccelerationStructure(rayTracingAccelerationStructure);
 
         // Iterate over all Cameras
         foreach (Camera camera in cameras)
@@ -96,7 +118,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
                 return;
             }
             
-            if (renderPipelineAsset.rayTracingAccelerationStructure == null)
+            if (rayTracingAccelerationStructure == null)
                 return;
             
             // Update the value of built-in shader variables, based on the current Camera
@@ -123,7 +145,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             Shader.SetGlobalInt(Shader.PropertyToID("g_BounceCountTransparent"), (int)renderPipelineAsset.bounceCountTransparent);
 
             // Input
-            renderPipelineAsset.rayTracingShader.SetAccelerationStructure(Shader.PropertyToID("g_AccelStruct"), renderPipelineAsset.rayTracingAccelerationStructure);
+            renderPipelineAsset.rayTracingShader.SetAccelerationStructure(Shader.PropertyToID("g_AccelStruct"), rayTracingAccelerationStructure);
             renderPipelineAsset.rayTracingShader.SetFloat(Shader.PropertyToID("g_Zoom"), Mathf.Tan(Mathf.Deg2Rad * camera.fieldOfView * 0.5f));
             renderPipelineAsset.rayTracingShader.SetFloat(Shader.PropertyToID("g_AspectRatio"), cameraWidth / (float)cameraHeight);
             renderPipelineAsset.rayTracingShader.SetInt(Shader.PropertyToID("g_ConvergenceStep"), convergenceStep);
