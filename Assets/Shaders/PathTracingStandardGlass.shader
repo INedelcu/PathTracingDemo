@@ -175,7 +175,6 @@ Shader "PathTracing/StandardGlass"
 
                 float3 albedo = !isFrontFace ? exp(-(1 - _Color.xyz) * RayTCurrent() * _ExtinctionCoefficient) : float3(1, 1, 1);
 
-                payload.k                       = (doRefraction == 1) ? 1 - fresnelFactor : fresnelFactor;
                 payload.albedo                  = albedo;
                 payload.emission                = float3(0, 0, 0);
                 payload.bounceIndexTransparent  = payload.bounceIndexTransparent + 1;
