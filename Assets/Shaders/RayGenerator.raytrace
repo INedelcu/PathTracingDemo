@@ -1,5 +1,6 @@
 #define ENABLE_TEMPORAL_ACCUMULATION
 //#define ENABLE_CAMERA_MOTION_VECTORS
+//#define NAN_MARKER
 
 #include "UnityShaderVariables.cginc"
 #include "GlobalResources.hlsl"
@@ -171,6 +172,11 @@ void MainRayGenShader()
     g_RadianceHistory[launchIndex] = float4(result, 1);
 #else
    g_Radiance[launchIndex] = float4(radiance, 1);
+#endif
+
+#ifdef NAN_MARKER
+    if (any(isnan(g_Radiance[launchIndex])))
+        g_Radiance[launchIndex] = float4(1.0, 0.0, 1.0, 1.0);
 #endif
 }
 
