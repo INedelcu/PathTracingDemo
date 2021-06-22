@@ -134,7 +134,7 @@ Shader "PathTracing/StandardGlass"
 
                 bool isFrontFace = HitKind() == HIT_KIND_TRIANGLE_FRONT_FACE;
 
-                float3 roughness = _Roughness * RandomUnitVector(payload.rngState);
+                float3 roughness = _Roughness * RandomUnitVector(payload.rngState, uint2(0,0), 0, payload.bounceIndexOpaque);
 
 #if _FLAT_SHADING
                 float3 e0 = v1.position - v0.position;
@@ -159,7 +159,13 @@ Shader "PathTracing/StandardGlass"
                 
                 float fresnelFactor = FresnelReflectAmountTransparent(isFrontFace ? 1 : _IOR, isFrontFace ? _IOR : 1, WorldRayDirection(), worldNormal);
 
+                uint2 launchIndex = uint2(DispatchRaysIndex().x, DispatchRaysDimensions().y - DispatchRaysIndex().y - 1);
+#ifdef USE_BLUENOISE_SAMPLING
+                uint bounceNum = payload.bounceIndexOpaque + payload.bounceIndexTransparent;
+                float doRefraction = (GetBNDSequenceSample(launchIndex, payload.rngState, NB_RAND_BOUNCE * bounceNum + 2) > fresnelFactor) ? 1 : 0;
+#else
                 float doRefraction = (RandomFloat01(payload.rngState) > fresnelFactor) ? 1 : 0;
+#endif
 
                 float3 bounceRayDir = lerp(reflectionRayDir, refractionRayDir, doRefraction);
 

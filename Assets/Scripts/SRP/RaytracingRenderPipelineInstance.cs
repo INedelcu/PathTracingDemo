@@ -32,187 +32,18 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
         }
         
         ReleaseResources();
-    }
-    
-    private RenderTexture rayTracingOutput = null;
-    private RenderTexture gBufferWorldNormals = null;
-    private RenderTexture gBufferIntersectionT = null;
-    private RenderTexture gBufferMotionVectors = null;
-    private RenderTexture previousVariance = null;
-    private RenderTexture destinationVariance = null;
-    private RenderTexture pingpong = null;
-        
+    }     
+	private DitheredTextureSet ditheredTextureSet;    
     public RayTracingAccelerationStructure rayTracingAccelerationStructure = null;
     
     private void ReleaseResources()
     {
-        if (rayTracingOutput != null)
-        {
-            rayTracingOutput.Release();
-            rayTracingOutput = null;
-        }
-        if (gBufferWorldNormals != null)
-        {
-            gBufferWorldNormals.Release();
-            gBufferWorldNormals = null;
-        }
-        if (gBufferIntersectionT != null)
-        {
-            gBufferIntersectionT.Release();
-            gBufferIntersectionT = null;
-        }
-        if (gBufferMotionVectors != null)
-        {
-            gBufferMotionVectors.Release();
-            gBufferMotionVectors = null;
-        }
-        if (destinationVariance != null)
-        {
-            destinationVariance.Release();
-            destinationVariance = null;
-        }
-        if (previousVariance != null)
-        {
-            previousVariance.Release();
-            previousVariance = null;
-        }
-        if (pingpong != null)
-        {
-            pingpong.Release();
-            pingpong = null;
-        }
+     
     }
 
     private void CreateResources(Camera camera)
     {
-        {
-            if (rayTracingOutput)
-                rayTracingOutput.Release();
-
-            RenderTextureDescriptor rtDesc = new RenderTextureDescriptor()
-            {
-                dimension = TextureDimension.Tex2D,
-                width = camera.pixelWidth,
-                height = camera.pixelHeight,
-                depthBufferBits = 0,
-                volumeDepth = 1,
-                msaaSamples = 1,
-                vrUsage = VRTextureUsage.OneEye,
-                graphicsFormat = GraphicsFormat.R32G32B32A32_SFloat,
-                enableRandomWrite = true,
-            };
-
-            rayTracingOutput = new RenderTexture(rtDesc);
-            rayTracingOutput.Create();
-            rayTracingOutput.name = "RT-output";
-        }
-
-        {
-            if (gBufferWorldNormals)
-                gBufferWorldNormals.Release();
-
-            RenderTextureDescriptor rtDesc = new RenderTextureDescriptor()
-            {
-                dimension = TextureDimension.Tex2D,
-                width = camera.pixelWidth,
-                height = camera.pixelHeight,
-                depthBufferBits = 0,
-                volumeDepth = 1,
-                msaaSamples = 1,
-                vrUsage = VRTextureUsage.OneEye,
-                graphicsFormat = GraphicsFormat.R32G32B32A32_SFloat,
-                enableRandomWrite = true,
-            };
-
-            gBufferWorldNormals = new RenderTexture(rtDesc);
-            gBufferWorldNormals.Create();
-        }
-        {
-            if (gBufferIntersectionT)
-                gBufferIntersectionT.Release();
-
-            RenderTextureDescriptor rtDesc = new RenderTextureDescriptor()
-            {
-                dimension = TextureDimension.Tex2D,
-                width = camera.pixelWidth,
-                height = camera.pixelHeight,
-                depthBufferBits = 0,
-                volumeDepth = 1,
-                msaaSamples = 1,
-                vrUsage = VRTextureUsage.OneEye,
-                graphicsFormat = GraphicsFormat.R32_SFloat,
-                enableRandomWrite = true,
-            };
-
-            gBufferIntersectionT = new RenderTexture(rtDesc);
-            gBufferIntersectionT.Create();
-        }
-        {
-            if (gBufferMotionVectors)
-                gBufferMotionVectors.Release();
-
-            RenderTextureDescriptor rtDesc = new RenderTextureDescriptor()
-            {
-                dimension = TextureDimension.Tex2D,
-                width = camera.pixelWidth,
-                height = camera.pixelHeight,
-                depthBufferBits = 0,
-                volumeDepth = 1,
-                msaaSamples = 1,
-                vrUsage = VRTextureUsage.OneEye,
-                graphicsFormat = GraphicsFormat.R32G32B32A32_SFloat,
-                enableRandomWrite = true,
-            };
-
-            gBufferMotionVectors = new RenderTexture(rtDesc);
-            gBufferMotionVectors.Create();
-        }
-        {
-            if (destinationVariance)
-                destinationVariance.Release();
-            if (previousVariance)
-                previousVariance.Release();
-
-            RenderTextureDescriptor rtDesc = new RenderTextureDescriptor()
-            {
-                dimension = TextureDimension.Tex2D,
-                width = camera.pixelWidth,
-                height = camera.pixelHeight,
-                depthBufferBits = 0,
-                volumeDepth = 1,
-                msaaSamples = 1,
-                vrUsage = VRTextureUsage.OneEye,
-                graphicsFormat = GraphicsFormat.R32_SFloat,
-                enableRandomWrite = true,
-            };
-
-            destinationVariance = new RenderTexture(rtDesc);
-            destinationVariance.Create();
-            destinationVariance.name = "destinationVariance";
-            previousVariance = new RenderTexture(rtDesc);
-            previousVariance.Create();
-            previousVariance.name = "previousVariance";
-        }
-        {
-            if (pingpong)
-                pingpong.Release();
-            
-            RenderTextureDescriptor rtDesc = new RenderTextureDescriptor()
-            {
-                dimension = TextureDimension.Tex2D,
-                width = camera.pixelWidth,
-                height = camera.pixelHeight,
-                depthBufferBits = 0,
-                volumeDepth = 1,
-                msaaSamples = 1,
-                vrUsage = VRTextureUsage.OneEye,
-                graphicsFormat = GraphicsFormat.R32G32B32A32_SFloat,
-                enableRandomWrite = true,
-            };
-            pingpong = new RenderTexture(rtDesc);
-            pingpong.name = "pingpong";
-            pingpong.Create();
-        }
+        ditheredTextureSet = DitheredTextureSet8SPP();
     }
 
     protected override void Render (ScriptableRenderContext context, Camera[] cameras)
@@ -270,9 +101,9 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             renderPipelineAsset.rayTracingShaderGBuffer.SetFloat(Shader.PropertyToID("g_AspectRatio"), camera.pixelWidth / (float)camera.pixelHeight);
 
             // Output
-            renderPipelineAsset.rayTracingShaderGBuffer.SetTexture(Shader.PropertyToID("g_GBufferWorldNormals"), gBufferWorldNormals);
-            renderPipelineAsset.rayTracingShaderGBuffer.SetTexture(Shader.PropertyToID("g_GBufferIntersectionT"), gBufferIntersectionT);
-            renderPipelineAsset.rayTracingShaderGBuffer.SetTexture(Shader.PropertyToID("g_GBufferMotionVectors"), gBufferMotionVectors);
+            renderPipelineAsset.rayTracingShaderGBuffer.SetTexture(Shader.PropertyToID("g_GBufferWorldNormals"), additionalData.gBufferWorldNormals);
+            renderPipelineAsset.rayTracingShaderGBuffer.SetTexture(Shader.PropertyToID("g_GBufferIntersectionT"), additionalData.gBufferIntersectionT);
+            renderPipelineAsset.rayTracingShaderGBuffer.SetTexture(Shader.PropertyToID("g_GBufferMotionVectors"), additionalData.gBufferMotionVectors);
 
             commandBuffer.DispatchRays(renderPipelineAsset.rayTracingShaderGBuffer, "MainRayGenShader", (uint)camera.pixelWidth, (uint)camera.pixelHeight, 1, camera);
     
@@ -285,7 +116,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             renderPipelineAsset.rayTracingShader.SetAccelerationStructure(Shader.PropertyToID("g_AccelStruct"), rayTracingAccelerationStructure);
             renderPipelineAsset.rayTracingShader.SetFloat(Shader.PropertyToID("g_Zoom"), Mathf.Tan(Mathf.Deg2Rad * camera.fieldOfView * 0.5f));
             renderPipelineAsset.rayTracingShader.SetFloat(Shader.PropertyToID("g_AspectRatio"), camera.pixelWidth / (float)camera.pixelHeight);
-            renderPipelineAsset.rayTracingShader.SetInt(Shader.PropertyToID("g_FrameIndex"), 0); // dont push!
+            renderPipelineAsset.rayTracingShader.SetInt(Shader.PropertyToID("g_FrameIndex"), additionalData.frameIndex);
             renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_EnvTex"), renderPipelineAsset.envTexture);
             renderPipelineAsset.rayTracingShader.SetMatrix(Shader.PropertyToID("g_PreviousViewProjection"), additionalData.previousViewProjection);
 
@@ -308,15 +139,18 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
                 renderPipelineAsset.rayTracingShader.SetInt(Shader.PropertyToID("g_UseDirectionalLight"), 0);
             }
 
+            BindDitheredTextureSet(commandBuffer, ditheredTextureSet);
+
             // Output
-            renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_Radiance"), rayTracingOutput);
+            renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_Radiance"), additionalData.rayTracingOutput);
             renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_RadianceHistory"), additionalData.colorHistory);
 
             commandBuffer.DispatchRays(renderPipelineAsset.rayTracingShader, "MainRayGenShader", (uint)camera.pixelWidth, (uint)camera.pixelHeight, 1, camera);
 
-            AtrousFilter(pingpong, renderPipelineAsset, commandBuffer, rayTracingOutput, gBufferWorldNormals, gBufferIntersectionT, previousVariance, destinationVariance);
+            // TODO plug in the radiance variance.
+            AtrousFilter(additionalData.rayTracingOutput, additionalData.gBufferWorldNormals, additionalData.gBufferIntersectionT, additionalData.rayTracingOutput);
             
-            commandBuffer.Blit(rayTracingOutput, camera.activeTexture);
+            commandBuffer.Blit(additionalData.rayTracingOutput, camera.activeTexture);
 
             // Instruct the graphics API to perform all scheduled commands
             context.ExecuteCommandBuffer(commandBuffer);
@@ -327,11 +161,11 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
                 // Debug RenderTextures
                 const uint rtDebugCount = 3;
                 RenderTexture[] renderTextures = new RenderTexture[rtDebugCount];
-                renderTextures[0] = gBufferWorldNormals;
-                renderTextures[1] = gBufferIntersectionT;
-                renderTextures[2] = rayTracingOutput;
+                renderTextures[0] = additionalData.gBufferWorldNormals;
+                renderTextures[1] = additionalData.gBufferIntersectionT;
+                renderTextures[2] = additionalData.gBufferMotionVectors;
 
-                int downScaleFactor = 3;
+                int downScaleFactor = 4;
 
                 GL.PushMatrix();
                 GL.LoadPixelMatrix(0, camera.pixelWidth, camera.pixelHeight, 0);
@@ -360,46 +194,38 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
         }
         commandBuffer.Release();
     }
-
-    static void AtrousFilter(RenderTexture pingpong, RaytracingRenderPipelineAsset asset, CommandBuffer commandBuffer, RenderTexture radiance,
-        RenderTexture normals, RenderTexture depth, RenderTexture previousVariance, RenderTexture destinationVariance)
+    
+    void AtrousFilter(RenderTexture radiance, RenderTexture normals, RenderTexture depth, RenderTexture filteredRadiance)
     {
-        if (asset.EnableATrous == false)
-            return;
-        
-        ComputeShader aTrousShader = asset.aTrousShader;
-        int kernelIndex = aTrousShader.FindKernel("ATrousKernel");
-        
-        RenderTexture[] radianceBuffers = new RenderTexture[2] {radiance, pingpong};
-        RenderTexture[] varianceBuffers = new RenderTexture[2] {previousVariance, destinationVariance} ;
-        for (int i = 0; i < asset.ATrousIterations; ++i)
-        {
-            int level = i + 1;
-            int sourceIndex = i % 2;
-            int destinationIndex = level % 2;
-            aTrousShader.SetTexture(kernelIndex, Shader.PropertyToID("radiance"), radianceBuffers[sourceIndex]);
-            aTrousShader.SetTexture(kernelIndex, Shader.PropertyToID("normals"), normals);
-            aTrousShader.SetTexture(kernelIndex, Shader.PropertyToID("depths"), depth);
-            aTrousShader.SetTexture(kernelIndex, Shader.PropertyToID("previousVariance"), varianceBuffers[sourceIndex]);
-            aTrousShader.SetTexture(kernelIndex, Shader.PropertyToID("destinationVariance"), varianceBuffers[destinationIndex]);
-            aTrousShader.SetTexture(kernelIndex, Shader.PropertyToID("filteredRadiance"), radianceBuffers[destinationIndex]);
-            aTrousShader.SetFloat(Shader.PropertyToID("radianceSigma"), asset.aTrousRadianceSigma);
-            aTrousShader.SetFloat(Shader.PropertyToID("normalSigma"), asset.aTrousNormalSigma);
-            aTrousShader.SetFloat(Shader.PropertyToID("depthSigma"), asset.aTrousDepthSigma);
-            aTrousShader.SetInt(Shader.PropertyToID("coordOffset"), level);
-            aTrousShader.SetBool("FIRST_PASS", i == 0);
-            aTrousShader.SetBool("LAST_PASS", level == asset.ATrousIterations);
-            
-            const int groupSizeX = 8;
-            const int groupSizeY = 8;
-            int threadGroupX = (radiance.width + (groupSizeX - 1)) / groupSizeX;
-            int threadGroupY = (radiance.height + (groupSizeY - 1)) / groupSizeY;
-            commandBuffer.DispatchCompute(aTrousShader, kernelIndex, threadGroupX, threadGroupY, 1);
-            
-            if (level == asset.ATrousIterations && destinationIndex == 1)
-            {
-                commandBuffer.CopyTexture(radianceBuffers[destinationIndex], radianceBuffers[sourceIndex]);
-            }
-        }
+    }
+
+    // Structure that holds all the dithered sampling texture that shall be binded at dispatch time.
+    internal struct DitheredTextureSet
+    {
+        public Texture2D scramblingTile;
+        public Texture2D rankingTile;
+        public Texture2D scramblingTex;
+        public Texture2D owenScrambled256Tex;
+    }
+
+    internal DitheredTextureSet DitheredTextureSet8SPP()
+    {
+        DitheredTextureSet ditheredTextureSet = new DitheredTextureSet();
+        ditheredTextureSet.scramblingTile = Resources.Load<Texture2D>("Textures/CoherentNoise/ScramblingTile256SPP");
+        ditheredTextureSet.rankingTile = Resources.Load<Texture2D>("Textures/CoherentNoise/RankingTile256SPP");
+        //ditheredTextureSet.scramblingTile = Resources.Load<Texture2D>("Textures/CoherentNoise/ScramblingTile8SPP");
+        //ditheredTextureSet.rankingTile = Resources.Load<Texture2D>("Textures/CoherentNoise/RankingTile8SPP");
+        ditheredTextureSet.scramblingTex = Resources.Load<Texture2D>("Textures/CoherentNoise/ScrambleNoise");
+        ditheredTextureSet.owenScrambled256Tex = Resources.Load<Texture2D>("Textures/CoherentNoise/OwenScrambledNoise256");
+
+        return ditheredTextureSet;
+    }
+
+    internal static void BindDitheredTextureSet(CommandBuffer cmd, DitheredTextureSet ditheredTextureSet)
+    {
+        cmd.SetGlobalTexture(Shader.PropertyToID("_ScramblingTileXSPP"), ditheredTextureSet.scramblingTile);
+        cmd.SetGlobalTexture(Shader.PropertyToID("_RankingTileXSPP"), ditheredTextureSet.rankingTile);
+        cmd.SetGlobalTexture(Shader.PropertyToID("_ScramblingTexture"), ditheredTextureSet.scramblingTex);
+        cmd.SetGlobalTexture(Shader.PropertyToID("_OwenScrambledTexture"), ditheredTextureSet.owenScrambled256Tex);
     }
 }
