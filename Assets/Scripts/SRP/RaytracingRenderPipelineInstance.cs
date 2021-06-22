@@ -211,16 +211,13 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
     internal DitheredTextureSet DitheredTextureSet8SPP()
     {
         DitheredTextureSet ditheredTextureSet = new DitheredTextureSet();
-        ditheredTextureSet.scramblingTile = Resources.Load<Texture2D>("Textures/CoherentNoise/ScramblingTile8SPP");
-        ditheredTextureSet.rankingTile = Resources.Load<Texture2D>("Textures/CoherentNoise/RankingTile8SPP");
+        ditheredTextureSet.scramblingTile = Resources.Load<Texture2D>("Textures/CoherentNoise/ScramblingTile256SPP");
+        ditheredTextureSet.rankingTile = Resources.Load<Texture2D>("Textures/CoherentNoise/RankingTile256SPP");
+        //ditheredTextureSet.scramblingTile = Resources.Load<Texture2D>("Textures/CoherentNoise/ScramblingTile8SPP");
+        //ditheredTextureSet.rankingTile = Resources.Load<Texture2D>("Textures/CoherentNoise/RankingTile8SPP");
         ditheredTextureSet.scramblingTex = Resources.Load<Texture2D>("Textures/CoherentNoise/ScrambleNoise");
         ditheredTextureSet.owenScrambled256Tex = Resources.Load<Texture2D>("Textures/CoherentNoise/OwenScrambledNoise256");
-/*
-        Debug.Log(ditheredTextureSet.scramblingTile.width);
-        Debug.Log(ditheredTextureSet.rankingTile.width);
-        Debug.Log(ditheredTextureSet.scramblingTex.width);
-        Debug.Log(ditheredTextureSet.owenScrambled256Tex.width);
-*/
+
         return ditheredTextureSet;
     }
 

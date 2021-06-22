@@ -36,10 +36,10 @@ void MainRayGenShader()
     // Initial random number generator seed for this pixel. The rngState will change every time we draw a random number.
 #ifdef USE_BLUENOISE_SAMPLING
     // Change sampling at each frame
-    //uint rngState = g_FrameIndex % 8;
+    uint rngState = g_FrameIndex % 256;
     
     // Fixed sampling
-    uint rngState = 0;   
+    //uint rngState = 0;   
 #else
     uint rngState = uint(uint(launchIndex.x) * uint(1973) + uint(launchIndex.y) * uint(9277) + uint(g_FrameIndex) * uint(26699)) | uint(1);   
 #endif
