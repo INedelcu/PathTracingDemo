@@ -20,8 +20,9 @@ MonoBehaviour:
   EnableTemporal: 1
   EnableATrous: 0
   aTrousShader: {fileID: 7200000, guid: 7acd393c540841440b7f04bee1ec6172, type: 3}
-  ATrousIterations: 1
+  ATrousIterations: 5
   aTrousRadianceSigma: 0.13
-  aTrousNormalSigma: 0.22
+  aTrousNormalSigma: 0.04
   aTrousDepthSigma: 0.24
+  NormalsStopping: 1
   envTexture: {fileID: 8900000, guid: 59eb7ff24f6630d469a4109caa03288f, type: 3}
