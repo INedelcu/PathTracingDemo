@@ -5,18 +5,18 @@
 */
 
 // kSamplerClampNearestUnormCoords for all of them.
+// All textures must have matching sizes.
 Texture2D<float4> radiance; // Source buffer
 Texture2D<float4> normals;
 Texture2D<float> depths;
 Texture2D<float> variance;// Prev variance buffer
 RWTexture2D<float4> filteredRadiance; // Dest buffer
 
-int2 imageSize;
-
-float colSigma;
-float normSigma;
+float radianceSigma;
+float normalSigma;
 float depthSigma;
 int coordOffset;
+bool FIRST_PASS;
 
 #if !defined(BLOCK_SIZE)
 #define BLOCK_SIZE 8
@@ -167,7 +167,12 @@ void ATrousKernel(
    int2 coord = global_id.xy;
 
    float2 gradDpt = 0.0f;
-
+ 
+   uint Width;
+   uint Height;
+   filteredRadiance.GetDimensions(Width, Height);
+   int2 imageSize = int2(Width, Height);
+   
    float4 dFdX, dFdY;
    int2 localStart;
    FILL_LOCAL_BUFFER_NORMALS_DEPTH(local_id.xy, normals, depths, imageSize, coord, 1, localStart);
@@ -177,12 +182,11 @@ void ATrousKernel(
    gradDpt.x = dFdX.w;
    gradDpt.y = dFdY.w;
 
-   // color variance value
-#ifdef FIRST_PASS
-   float colVar = length(float3(SampleGauss3x3F(local_id.xy, radiance, imageSize, coord, window).xyz));
-#else
-   float colVar = variance[coord];
-#endif
+   float colVar;// color variance value
+   if (FIRST_PASS)
+      colVar = length(float3(SampleGauss3x3F(local_id.xy, radiance, imageSize, coord).xyz));
+   else
+      colVar = variance[coord];
 
    //B3 spline
    const float kernl[] =
@@ -222,14 +226,14 @@ void ATrousKernel(
 
          float3 c = radiance[offsetUV].xyz;
 
-         float multiplier = C(c, qcol, colSigma * sqrt(colVar) + 1.0e-5f);
+         float multiplier = C(c, qcol, radianceSigma * sqrt(colVar) + 1.0e-5f);
          coeff *= multiplier > 0.0f ? multiplier : 0.0f;
 
          // Normal edge stopping
          float3 normal = normals[offsetUV].xyz;
          float depth   = depths[offsetUV];
          
-         multiplier = nW(normal.xyz, qnorm, normSigma);
+         multiplier = nW(normal.xyz, qnorm, normalSigma);
          coeff *= multiplier > 0.0f ? multiplier : 0.0f;
 
          // Depth edge stopping
@@ -243,6 +247,6 @@ void ATrousKernel(
 
    output.w   = srcAlpha;
    output.xyz = sum > float3(0.0f, 0.0f, 0.0f) ? output.xyz / sum : float3(0.0f, 0.0f, 0.0f);
-
+   
    filteredRadiance[coord] = output;
 }
