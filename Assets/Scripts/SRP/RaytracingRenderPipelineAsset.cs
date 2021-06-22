@@ -17,6 +17,12 @@ public class RaytracingRenderPipelineAsset : RenderPipelineAsset
     public RayTracingShader rayTracingShader = null;
     public RayTracingShader rayTracingShaderGBuffer = null;
     public ComputeShader aTrousShader = null;
+    [Range(0, 3)]
+    public float aTrousRadianceSigma = 1.0f;
+    [Range(0, 3)]
+    public float aTrousNormalSigma = 0.1f;
+    [Range(0, 3)]
+    public float aTrousDepthSigma = 0.1f;
     
     // replace with environment from Lighting window.
     public Cubemap envTexture = null;
