@@ -52,7 +52,7 @@ float GetBNDSequenceSample(uint2 pixelCoord, uint sampleIndex, uint sampleDimens
     value = value ^ uint(scramblingValue * 256.0);
 
     // Convert to float (to avoid the same 1/256th quantization everywhere, we jitter by the pixel scramblingValue)
-    return (scramblingValue + value) / 256.0;
+    return (max(0.001, scramblingValue) + value) / 256.0;
 }
 
 #endif // UNITY_BLUENOISE_SAMPLING_INCLUDED
