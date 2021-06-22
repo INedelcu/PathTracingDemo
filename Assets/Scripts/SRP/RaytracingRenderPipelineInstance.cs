@@ -240,7 +240,9 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             commandBuffer.SetComputeIntParam(aTrousShader, Shader.PropertyToID("LAST_PASS"), level == asset.ATrousIterations ? 1 : 0);
             commandBuffer.SetComputeIntParam(aTrousShader, Shader.PropertyToID("width"), radiance.width);
             commandBuffer.SetComputeIntParam(aTrousShader, Shader.PropertyToID("height"), radiance.height);
-            commandBuffer.SetComputeIntParam(aTrousShader, Shader.PropertyToID("normalsStopping"), asset.NormalsStopping ? 1 : 0);
+            commandBuffer.SetComputeIntParam(aTrousShader, Shader.PropertyToID("radianceStopping"), asset.RadianceStopping ? 1 : 0);
+            commandBuffer.SetComputeIntParam(aTrousShader, Shader.PropertyToID("normalStopping"), asset.NormalStopping ? 1 : 0);
+            commandBuffer.SetComputeIntParam(aTrousShader, Shader.PropertyToID("depthStopping"), asset.DepthStopping ? 1 : 0);            
 
             const int groupSizeX = 8;
             const int groupSizeY = 8;

@@ -21,7 +21,9 @@ int FIRST_PASS;
 int LAST_PASS;
 int width;
 int height;
-int normalsStopping;
+int radianceStopping;
+int normalStopping;
+int depthStopping;
 
 #if !defined(BLOCK_SIZE)
 #define BLOCK_SIZE 8
@@ -115,7 +117,8 @@ while(0);
 // Similarity function
 static inline float C(float3 x1, float3 x2, float sigma)
 {
-   return 1.0f;
+	if (radianceStopping == 0)
+		return 1.0f;
    
    float3 distance = x1 - x2;
    float a = length(distance) / sigma;
@@ -126,8 +129,9 @@ static inline float C(float3 x1, float3 x2, float sigma)
 // Depth similarity function
 static inline float dW(float x1, float x2, float sigma)
 {
-   return 1.0f;
-   
+	if (depthStopping == 0)
+		return 1.0f;
+
    float a = abs(x1 - x2) / sigma;
    return exp(-a);
 }
@@ -136,7 +140,7 @@ static inline float dW(float x1, float x2, float sigma)
 // Normals similarity function
 static inline float nW(float3 x1, float3 x2, float sigma)
 {
-	if (normalsStopping == 0)
+	if (normalStopping == 0)
 		return 1.0f;
    
    x1 = normalize(x1 + float3(0.01f, 0.01f, 0.01f));
