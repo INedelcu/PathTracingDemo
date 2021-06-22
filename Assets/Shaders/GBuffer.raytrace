@@ -10,8 +10,9 @@ float                           g_Zoom;
 float                           g_AspectRatio;
 
 // Output
-RWTexture2D<float3>             g_WorldNormals;
-RWTexture2D<float>              g_IntersectionT;
+RWTexture2D<float4>             g_GBufferWorldNormals;
+RWTexture2D<float>              g_GBufferIntersectionT;
+RWTexture2D<float4>             g_GBufferMotionVectors;
 
 [shader("raygeneration")]
 void MainRayGenShader()
@@ -42,12 +43,14 @@ void MainRayGenShader()
     RayPayloadGBuffer payload;
     payload.worldNormal = float3(0, 0, 0);
     payload.intersectionT = K_T_MAX;
+    payload.velocity = 0;
    
     uint missShaderIndex = 0;
     TraceRay(g_AccelStruct, 0, 0xFF, 0, 1, missShaderIndex, ray, payload);
   
-    g_WorldNormals[launchIndex] = float4(payload.worldNormal, 1);
-    g_IntersectionT[launchIndex] = payload.intersectionT;
+    g_GBufferWorldNormals[launchIndex] = float4(payload.worldNormal, 1);
+    g_GBufferIntersectionT[launchIndex] = payload.intersectionT;
+    g_GBufferMotionVectors[launchIndex] = float4(payload.velocity, 1);
 }
 
 [shader("miss")]

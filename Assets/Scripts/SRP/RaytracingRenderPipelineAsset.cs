@@ -12,6 +12,8 @@ public class RaytracingRenderPipelineAsset : RenderPipelineAsset
     [Range(1, 100)]
     public int bounceCountTransparent = 8;
 
+    public bool debugOutput = false;
+
     public RayTracingShader rayTracingShader = null;
     public RayTracingShader rayTracingShaderGBuffer = null;
     

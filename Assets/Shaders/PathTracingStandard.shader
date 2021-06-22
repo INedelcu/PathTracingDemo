@@ -230,6 +230,8 @@ Shader "PathTracing/Standard"
             #include "UnityRaytracingMeshUtils.cginc"
             #include "RayPayloadGBuffer.hlsl"
 
+            float4x4 unity_MatrixPreviousM;
+
             struct AttributeData
             {
                 float2 barycentrics;
@@ -271,8 +273,12 @@ Shader "PathTracing/Standard"
                 float3 barycentricCoords = float3(1.0 - attribs.barycentrics.x - attribs.barycentrics.y, attribs.barycentrics.x, attribs.barycentrics.y);
                 Vertex v = InterpolateVertices(v0, v1, v2, barycentricCoords);
 
+                float3 worldPos = mul(ObjectToWorld(), float4(v.position, 1.0)).xyz;
+                float3 prevWorldPos = mul(unity_MatrixPreviousM, float4(v.position, 1.0)).xyz;
+
                 payload.worldNormal = normalize(mul(v.normal, (float3x3)WorldToObject()));
                 payload.intersectionT = RayTCurrent();
+                payload.velocity = worldPos - prevWorldPos;
             }
 
             ENDHLSL
