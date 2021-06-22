@@ -236,8 +236,8 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             aTrousShader.SetFloat(Shader.PropertyToID("normalSigma"), asset.aTrousNormalSigma);
             aTrousShader.SetFloat(Shader.PropertyToID("depthSigma"), asset.aTrousDepthSigma);
             aTrousShader.SetInt(Shader.PropertyToID("coordOffset"), level);
-            aTrousShader.SetBool("FIRST_PASS", i == 0);
-            aTrousShader.SetBool("LAST_PASS", level == asset.ATrousIterations);
+            aTrousShader.SetBool(Shader.PropertyToID("FIRST_PASS"), i == 0);
+            aTrousShader.SetBool(Shader.PropertyToID("LAST_PASS"), level == asset.ATrousIterations);
             aTrousShader.SetInt(Shader.PropertyToID("width"), radiance.width);
             aTrousShader.SetInt(Shader.PropertyToID("height"), radiance.height);
 
