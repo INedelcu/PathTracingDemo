@@ -15,7 +15,8 @@ public class RaytracingRenderPipelineAsset : RenderPipelineAsset
     public bool debugOutput = false;
 
     public RayTracingShader rayTracingShader = null;
-    public RayTracingShader rayTracingShaderGBuffer = null;
+    public RayTracingShader rayTracingShaderGBuffer = null;    
+    public bool EnableTemporal = true;
     public bool EnableATrous = false;
     public ComputeShader aTrousShader = null;
     [Range(0, 5)]

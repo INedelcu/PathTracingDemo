@@ -17,9 +17,10 @@ MonoBehaviour:
   debugOutput: 0
   rayTracingShader: {fileID: 4807578003741378534, guid: 25de828becd32954ba57c3fe01f040cf, type: 3}
   rayTracingShaderGBuffer: {fileID: 4807578003741378534, guid: 1dd6bf4c50bbed94daca16900d49ecc2, type: 3}
+  EnableTemporal: 1
   EnableATrous: 0
   aTrousShader: {fileID: 7200000, guid: 7acd393c540841440b7f04bee1ec6172, type: 3}
-  ATrousIterations: 5
+  ATrousIterations: 1
   aTrousRadianceSigma: 0.13
   aTrousNormalSigma: 0.22
   aTrousDepthSigma: 0.24
