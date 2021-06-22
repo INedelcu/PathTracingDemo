@@ -180,6 +180,8 @@ Shader "PathTracing/StandardGlass"
                 payload.bounceIndexTransparent  = payload.bounceIndexTransparent + 1;
                 payload.bounceRayOrigin         = worldPosition + pushOff * worldNormal;
                 payload.bounceRayDirection      = bounceRayDir;
+                payload.lastWorldNormal         = worldNormal;
+                payload.lastWorldPosition       = worldPosition;
             }
 
             ENDHLSL

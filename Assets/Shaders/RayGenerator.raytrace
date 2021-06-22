@@ -92,7 +92,7 @@ void MainRayGenShader()
 
 #ifdef ENABLE_CAMERA_MOTION_VECTORS
         // TODO: this is not 100% correct yet, static camera does not give 0 vectors!
-        if (payload.bounceIndexOpaque == 1)
+        if (payload.bounceIndexOpaque + payload.bounceIndexTransparent == 1)
         {
             float4 projCoords = mul(g_PreviousViewProjection, float4(payload.lastWorldPosition, 1.0));
             projCoords.xyz = projCoords.xyz / projCoords.w;
