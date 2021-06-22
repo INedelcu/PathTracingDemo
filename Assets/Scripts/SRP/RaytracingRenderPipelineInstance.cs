@@ -209,8 +209,9 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_Radiance"), rayTracingOutput);       
 
             commandBuffer.DispatchRays(renderPipelineAsset.rayTracingShader, "MainRayGenShader", (uint)camera.pixelWidth, (uint)camera.pixelHeight, 1, camera);
-           
-            // Plug in denoiser here.
+
+            // TODO plug in the radiance variance.
+            AtrousFilter(rayTracingOutput, gBufferWorldNormals, gBufferIntersectionT, rayTracingOutput);
             
             commandBuffer.Blit(rayTracingOutput, camera.activeTexture);
 
@@ -221,5 +222,10 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             ReleaseResources();
         }
         commandBuffer.Release();
+    }
+    
+    void AtrousFilter(RenderTexture radiance, RenderTexture normals, RenderTexture depth, RenderTexture filteredRadiance)
+    {
+    
     }
 }
