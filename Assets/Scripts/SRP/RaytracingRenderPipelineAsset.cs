@@ -17,7 +17,6 @@ public class RaytracingRenderPipelineAsset : RenderPipelineAsset
 
     public RayTracingShader rayTracingShader = null;
     public RayTracingShader rayTracingShaderGBuffer = null;    
-    public bool EnableTemporal = true;
     [Header("A-Trous Settings")]
     public bool EnableATrous = false;
     public ComputeShader aTrousShader = null;
