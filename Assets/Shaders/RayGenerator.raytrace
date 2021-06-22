@@ -1,4 +1,4 @@
-//#define ENABLE_TEMPORAL_ACCUMULATION
+#define ENABLE_TEMPORAL_ACCUMULATION
 //#define ENABLE_CAMERA_MOTION_VECTORS
 
 #include "UnityShaderVariables.cginc"
@@ -34,7 +34,16 @@ void MainRayGenShader()
     float2 frameCoord = launchIndex + float2(0.5, 0.5);
 
     // Initial random number generator seed for this pixel. The rngState will change every time we draw a random number.
+#ifdef USE_BLUENOISE_SAMPLING
+    // Change sampling at each frame
+    uint rngState = g_FrameIndex % 256;
+    
+    // Fixed sampling
+    //uint rngState = 0;   
+#else
     uint rngState = uint(uint(launchIndex.x) * uint(1973) + uint(launchIndex.y) * uint(9277) + uint(g_FrameIndex) * uint(26699)) | uint(1);   
+#endif
+    
 
     float2 ndcCoords = frameCoord  / float2(launchDim.x - 1, launchDim.y - 1);
         
@@ -63,7 +72,6 @@ void MainRayGenShader()
     payload.bounceRayOrigin         = float3(0, 0, 0);
     payload.bounceRayDirection      = float3(0, 0, 0);
     payload.lastWorldNormal         = float3(0, 0, 0);
-    payload.k                       = 1;
     payload.isShadowRay             = false;
 
     // Safe net for when shaders have compilation errors and don't increase the bounce index, resulting in an infinite loop.
@@ -80,7 +88,7 @@ void MainRayGenShader()
         // Accumulate emission from hit object
         radiance += payload.emission * throughput;
             
-        throughput *= payload.albedo / max(0.001, payload.k);
+        throughput *= payload.albedo;
 
 #ifdef ENABLE_CAMERA_MOTION_VECTORS
         // TODO: this is not 100% correct yet, static camera does not give 0 vectors!
@@ -123,25 +131,26 @@ void MainRayGenShader()
             }
         }
 
-        float pathStopProbability = 1;
-
 #define ENABLE_RUSSIAN_ROULETTE 1
 
 #if ENABLE_RUSSIAN_ROULETTE
-        pathStopProbability = max(throughput.r, max(throughput.g, throughput.b));
+
+        float pathStopProbability = min(max(throughput.r, max(throughput.g, throughput.b)), 1.0);
 
 #ifdef USE_BLUENOISE_SAMPLING
-                float randRR = GetBNDSequenceSample(launchIndex, 0, NB_RAND_BOUNCE * payload.bounceIndexOpaque + 2);
+        uint bounceNum = payload.bounceIndexOpaque + payload.bounceIndexTransparent;
+        float randRR = GetBNDSequenceSample(launchIndex, payload.rngState, NB_RAND_BOUNCE * bounceNum + 3);
 #else
-                float randRR = RandomFloat01(payload.rngState);
+        float randRR = RandomFloat01(payload.rngState);
 #endif
 
         // Dark colors have higher chance to terminate the path early.
         if (pathStopProbability < randRR)
             break;
-#endif
 
         throughput *= 1 / pathStopProbability;
+
+#endif // ENABLE_RUSSIAN_ROULETTE
 
         ray.Origin      = payload.bounceRayOrigin;
         ray.Direction   = payload.bounceRayDirection;
@@ -150,7 +159,7 @@ void MainRayGenShader()
 
 
 #ifdef ENABLE_TEMPORAL_ACCUMULATION
-    float alpha = 0.1;
+    float alpha = 0.2;
     float2 projCoord = frameCoord - motionVector;
     if (projCoord.x < 0 || projCoord.y < 0 || projCoord.x > launchDim.x || projCoord.y > launchDim.y)
         alpha = 1.0;

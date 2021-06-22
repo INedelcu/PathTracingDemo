@@ -26,6 +26,15 @@ public class AdditionalCameraData : MonoBehaviour
     [HideInInspector]
     public RenderTexture rayTracingOutput = null;
 
+    [HideInInspector]
+    public RenderTexture aTrousPingpongRadiance = null;
+
+    [HideInInspector]
+    public RenderTexture aTrousVariance = null;
+
+    [HideInInspector]
+    public RenderTexture aTrousPingpongVariance = null;
+
     // Start is called before the first frame update
     void Start()
     {
@@ -94,6 +103,72 @@ public class AdditionalCameraData : MonoBehaviour
             rayTracingOutput = new RenderTexture(rtDesc);
             rayTracingOutput.Create();
         }
+
+        if (aTrousPingpongRadiance == null || aTrousPingpongRadiance.width != camera.pixelWidth || aTrousPingpongRadiance.height != camera.pixelHeight)
+        {
+            if (aTrousPingpongRadiance)
+                aTrousPingpongRadiance.Release();
+
+            RenderTextureDescriptor rtDesc = new RenderTextureDescriptor()
+            {
+                dimension = TextureDimension.Tex2D,
+                width = camera.pixelWidth,
+                height = camera.pixelHeight,
+                depthBufferBits = 0,
+                volumeDepth = 1,
+                msaaSamples = 1,
+                vrUsage = VRTextureUsage.OneEye,
+                graphicsFormat = GraphicsFormat.R32G32B32A32_SFloat,
+                enableRandomWrite = true,
+            };
+
+            aTrousPingpongRadiance = new RenderTexture(rtDesc);
+            aTrousPingpongRadiance.Create();
+        }
+
+        if (aTrousVariance == null || aTrousVariance.width != camera.pixelWidth || aTrousVariance.height != camera.pixelHeight)
+        {
+            if (aTrousVariance)
+                aTrousVariance.Release();
+
+            RenderTextureDescriptor rtDesc = new RenderTextureDescriptor()
+            {
+                dimension = TextureDimension.Tex2D,
+                width = camera.pixelWidth,
+                height = camera.pixelHeight,
+                depthBufferBits = 0,
+                volumeDepth = 1,
+                msaaSamples = 1,
+                vrUsage = VRTextureUsage.OneEye,
+                graphicsFormat = GraphicsFormat.R32_SFloat,
+                enableRandomWrite = true,
+            };
+
+            aTrousVariance = new RenderTexture(rtDesc);
+            aTrousVariance.Create();
+        }
+
+        if (aTrousPingpongVariance == null || aTrousPingpongVariance.width != camera.pixelWidth || aTrousPingpongVariance.height != camera.pixelHeight)
+        {
+            if (aTrousPingpongVariance)
+                aTrousPingpongVariance.Release();
+
+            RenderTextureDescriptor rtDesc = new RenderTextureDescriptor()
+            {
+                dimension = TextureDimension.Tex2D,
+                width = camera.pixelWidth,
+                height = camera.pixelHeight,
+                depthBufferBits = 0,
+                volumeDepth = 1,
+                msaaSamples = 1,
+                vrUsage = VRTextureUsage.OneEye,
+                graphicsFormat = GraphicsFormat.R32_SFloat,
+                enableRandomWrite = true,
+            };
+
+            aTrousPingpongVariance = new RenderTexture(rtDesc);
+            aTrousPingpongVariance.Create();
+        }        
 
         if (gBufferWorldNormals == null || gBufferWorldNormals.width != camera.pixelWidth || gBufferWorldNormals.height != camera.pixelHeight)
         {

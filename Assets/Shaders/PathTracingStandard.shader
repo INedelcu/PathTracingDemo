@@ -187,13 +187,14 @@ Shader "PathTracing/Standard"
                 uint2 launchIndex = uint2(DispatchRaysIndex().x, DispatchRaysDimensions().y - DispatchRaysIndex().y - 1);
                 // Calculate whether we are going to do a diffuse or specular reflection ray 
 #ifdef USE_BLUENOISE_SAMPLING
-                float doSpecular = (GetBNDSequenceSample(launchIndex, 0, NB_RAND_BOUNCE * payload.bounceIndexOpaque + 2) < specularChance) ? 1 : 0;
+                uint bounceNum = payload.bounceIndexOpaque + payload.bounceIndexTransparent;
+                float doSpecular = (GetBNDSequenceSample(launchIndex, payload.rngState, NB_RAND_BOUNCE * bounceNum + 2) < specularChance) ? 1 : 0;
 #else
                 float doSpecular = (RandomFloat01(payload.rngState) < specularChance) ? 1 : 0;
 #endif
                 // Get a cosine-weighted distribution by using the formula from https://www.iue.tuwien.ac.at/phd/ertl/node100.html
                 
-                float3 diffuseRayDir =  SampleDiffuse(payload.rngState, launchIndex, 0, NB_RAND_BOUNCE * payload.bounceIndexOpaque, worldNormal);
+                float3 diffuseRayDir =  SampleDiffuse(payload.rngState, launchIndex, payload.rngState, NB_RAND_BOUNCE * payload.bounceIndexOpaque, worldNormal);
 
                 float3 specularRayDir = reflect(WorldRayDirection(), worldNormal);
               
@@ -211,7 +212,6 @@ Shader "PathTracing/Standard"
 
                 float3 albedo = _Color.xyz * _MainTex.SampleLevel(sampler__MainTex, _MainTex_ST.xy * v.uv + _MainTex_ST.zw, 0).xyz;
 
-                payload.k                   = (doSpecular == 1) ? specularChance : 1 - specularChance;
                 payload.albedo              = lerp(albedo, _SpecularColor.xyz, doSpecular);
                 payload.emission            = emission;                
                 payload.bounceIndexOpaque   = payload.bounceIndexOpaque + 1;

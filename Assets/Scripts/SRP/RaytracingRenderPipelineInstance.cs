@@ -116,7 +116,8 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             commandBuffer.SetRayTracingAccelerationStructure(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_AccelStruct"), rayTracingAccelerationStructure);
             commandBuffer.SetRayTracingFloatParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_Zoom"), Mathf.Tan(Mathf.Deg2Rad * camera.fieldOfView * 0.5f));
             commandBuffer.SetRayTracingFloatParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_AspectRatio"), camera.pixelWidth / (float)camera.pixelHeight);
-            commandBuffer.SetRayTracingIntParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_FrameIndex"), additionalData.frameIndex);
+            int frameIndex = renderPipelineAsset.EnableTemporal ? additionalData.frameIndex : 0;
+            commandBuffer.SetRayTracingIntParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_FrameIndex"), frameIndex);
             commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_EnvTex"), renderPipelineAsset.envTexture);
             commandBuffer.SetRayTracingMatrixParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_PreviousViewProjection"), additionalData.previousViewProjection);
 
@@ -147,9 +148,16 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
             commandBuffer.DispatchRays(renderPipelineAsset.rayTracingShader, "MainRayGenShader", (uint)camera.pixelWidth, (uint)camera.pixelHeight, 1, camera);
 
-            // TODO plug in the radiance variance.
-            AtrousFilter(additionalData.rayTracingOutput, additionalData.gBufferWorldNormals, additionalData.gBufferIntersectionT, additionalData.rayTracingOutput);
-            
+            AtrousFilter(
+                renderPipelineAsset, 
+                commandBuffer, 
+                additionalData.rayTracingOutput, 
+                additionalData.aTrousPingpongRadiance, 
+                additionalData.aTrousVariance, 
+                additionalData.aTrousPingpongVariance, 
+                additionalData.gBufferWorldNormals, 
+                additionalData.gBufferIntersectionT);
+
             commandBuffer.Blit(additionalData.rayTracingOutput, camera.activeTexture);
 
             // Instruct the graphics API to perform all scheduled commands
@@ -194,9 +202,57 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
         }
         commandBuffer.Release();
     }
-    
-    void AtrousFilter(RenderTexture radiance, RenderTexture normals, RenderTexture depth, RenderTexture filteredRadiance)
+
+    static void AtrousFilter(
+        RaytracingRenderPipelineAsset asset,
+        CommandBuffer commandBuffer,
+        RenderTexture radiance,
+        RenderTexture pingpongRadiance,
+        RenderTexture variance,
+        RenderTexture pingpongVariance,
+        RenderTexture normals,
+        RenderTexture depth)
     {
+        if (asset.EnableATrous == false)
+            return;
+
+        ComputeShader aTrousShader = asset.aTrousShader;
+        int kernelIndex = aTrousShader.FindKernel("ATrousKernel");
+
+        RenderTexture[] radianceBuffers = new RenderTexture[2] { radiance, pingpongRadiance };
+        RenderTexture[] varianceBuffers = new RenderTexture[2] { variance, pingpongVariance };
+        for (int i = 0; i < asset.ATrousIterations; ++i)
+        {
+            int level = i + 1;
+            int sourceIndex = i % 2;
+            int destinationIndex = level % 2;
+            aTrousShader.SetTexture(kernelIndex, Shader.PropertyToID("radiance"), radianceBuffers[sourceIndex]);
+            aTrousShader.SetTexture(kernelIndex, Shader.PropertyToID("normals"), normals);
+            aTrousShader.SetTexture(kernelIndex, Shader.PropertyToID("depths"), depth);
+            aTrousShader.SetTexture(kernelIndex, Shader.PropertyToID("previousVariance"), varianceBuffers[sourceIndex]);
+            aTrousShader.SetTexture(kernelIndex, Shader.PropertyToID("destinationVariance"), varianceBuffers[destinationIndex]);
+            aTrousShader.SetTexture(kernelIndex, Shader.PropertyToID("filteredRadiance"), radianceBuffers[destinationIndex]);
+            aTrousShader.SetFloat(Shader.PropertyToID("radianceSigma"), asset.aTrousRadianceSigma);
+            aTrousShader.SetFloat(Shader.PropertyToID("normalSigma"), asset.aTrousNormalSigma);
+            aTrousShader.SetFloat(Shader.PropertyToID("depthSigma"), asset.aTrousDepthSigma);
+            aTrousShader.SetInt(Shader.PropertyToID("coordOffset"), level);
+            aTrousShader.SetBool("FIRST_PASS", i == 0);
+            aTrousShader.SetBool("LAST_PASS", level == asset.ATrousIterations);
+            aTrousShader.SetInt(Shader.PropertyToID("width"), radiance.width);
+            aTrousShader.SetInt(Shader.PropertyToID("height"), radiance.height);
+
+            const int groupSizeX = 8;
+            const int groupSizeY = 8;
+            int threadGroupX = (radiance.width + (groupSizeX - 1)) / groupSizeX;
+            int threadGroupY = (radiance.height + (groupSizeY - 1)) / groupSizeY;
+            commandBuffer.DispatchCompute(aTrousShader, kernelIndex, threadGroupX, threadGroupY, 1);
+
+            if (level == asset.ATrousIterations && destinationIndex == 1)
+            {
+                // copy radiance across when pingpong has cause the radiance to end up in the pingpong buffer
+                commandBuffer.CopyTexture(radianceBuffers[destinationIndex], radianceBuffers[sourceIndex]);
+            }
+        }
     }
 
     // Structure that holds all the dithered sampling texture that shall be binded at dispatch time.
@@ -211,16 +267,13 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
     internal DitheredTextureSet DitheredTextureSet8SPP()
     {
         DitheredTextureSet ditheredTextureSet = new DitheredTextureSet();
-        ditheredTextureSet.scramblingTile = Resources.Load<Texture2D>("Textures/CoherentNoise/ScramblingTile8SPP");
-        ditheredTextureSet.rankingTile = Resources.Load<Texture2D>("Textures/CoherentNoise/RankingTile8SPP");
+        ditheredTextureSet.scramblingTile = Resources.Load<Texture2D>("Textures/CoherentNoise/ScramblingTile256SPP");
+        ditheredTextureSet.rankingTile = Resources.Load<Texture2D>("Textures/CoherentNoise/RankingTile256SPP");
+        //ditheredTextureSet.scramblingTile = Resources.Load<Texture2D>("Textures/CoherentNoise/ScramblingTile8SPP");
+        //ditheredTextureSet.rankingTile = Resources.Load<Texture2D>("Textures/CoherentNoise/RankingTile8SPP");
         ditheredTextureSet.scramblingTex = Resources.Load<Texture2D>("Textures/CoherentNoise/ScrambleNoise");
         ditheredTextureSet.owenScrambled256Tex = Resources.Load<Texture2D>("Textures/CoherentNoise/OwenScrambledNoise256");
-/*
-        Debug.Log(ditheredTextureSet.scramblingTile.width);
-        Debug.Log(ditheredTextureSet.rankingTile.width);
-        Debug.Log(ditheredTextureSet.scramblingTex.width);
-        Debug.Log(ditheredTextureSet.owenScrambled256Tex.width);
-*/
+
         return ditheredTextureSet;
     }
 
