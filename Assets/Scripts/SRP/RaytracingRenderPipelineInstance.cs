@@ -33,7 +33,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
         
         ReleaseResources();
     }     
-    
+	private DitheredTextureSet ditheredTextureSet;    
     public RayTracingAccelerationStructure rayTracingAccelerationStructure = null;
     
     private void ReleaseResources()
@@ -43,6 +43,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
     private void CreateResources(Camera camera)
     {
+        ditheredTextureSet = DitheredTextureSet8SPP();
     }
 
     protected override void Render (ScriptableRenderContext context, Camera[] cameras)
@@ -138,6 +139,8 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
                 renderPipelineAsset.rayTracingShader.SetInt(Shader.PropertyToID("g_UseDirectionalLight"), 0);
             }
 
+            BindDitheredTextureSet(commandBuffer, ditheredTextureSet);
+
             // Output
             renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_Radiance"), additionalData.rayTracingOutput);
             renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_RadianceHistory"), additionalData.colorHistory);
@@ -194,6 +197,38 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
     
     void AtrousFilter(RenderTexture radiance, RenderTexture normals, RenderTexture depth, RenderTexture filteredRadiance)
     {
-    
+    }
+
+    // Structure that holds all the dithered sampling texture that shall be binded at dispatch time.
+    internal struct DitheredTextureSet
+    {
+        public Texture2D scramblingTile;
+        public Texture2D rankingTile;
+        public Texture2D scramblingTex;
+        public Texture2D owenScrambled256Tex;
+    }
+
+    internal DitheredTextureSet DitheredTextureSet8SPP()
+    {
+        DitheredTextureSet ditheredTextureSet = new DitheredTextureSet();
+        ditheredTextureSet.scramblingTile = Resources.Load<Texture2D>("Textures/CoherentNoise/ScramblingTile8SPP");
+        ditheredTextureSet.rankingTile = Resources.Load<Texture2D>("Textures/CoherentNoise/RankingTile8SPP");
+        ditheredTextureSet.scramblingTex = Resources.Load<Texture2D>("Textures/CoherentNoise/ScrambleNoise");
+        ditheredTextureSet.owenScrambled256Tex = Resources.Load<Texture2D>("Textures/CoherentNoise/OwenScrambledNoise256");
+/*
+        Debug.Log(ditheredTextureSet.scramblingTile.width);
+        Debug.Log(ditheredTextureSet.rankingTile.width);
+        Debug.Log(ditheredTextureSet.scramblingTex.width);
+        Debug.Log(ditheredTextureSet.owenScrambled256Tex.width);
+*/
+        return ditheredTextureSet;
+    }
+
+    internal static void BindDitheredTextureSet(CommandBuffer cmd, DitheredTextureSet ditheredTextureSet)
+    {
+        cmd.SetGlobalTexture(Shader.PropertyToID("_ScramblingTileXSPP"), ditheredTextureSet.scramblingTile);
+        cmd.SetGlobalTexture(Shader.PropertyToID("_RankingTileXSPP"), ditheredTextureSet.rankingTile);
+        cmd.SetGlobalTexture(Shader.PropertyToID("_ScramblingTexture"), ditheredTextureSet.scramblingTex);
+        cmd.SetGlobalTexture(Shader.PropertyToID("_OwenScrambledTexture"), ditheredTextureSet.owenScrambled256Tex);
     }
 }

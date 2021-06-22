@@ -130,8 +130,14 @@ void MainRayGenShader()
 #if ENABLE_RUSSIAN_ROULETTE
         pathStopProbability = max(throughput.r, max(throughput.g, throughput.b));
 
+#ifdef USE_BLUENOISE_SAMPLING
+                float randRR = GetBNDSequenceSample(launchIndex, 0, NB_RAND_BOUNCE * payload.bounceIndexOpaque + 2);
+#else
+                float randRR = RandomFloat01(payload.rngState);
+#endif
+
         // Dark colors have higher chance to terminate the path early.
-        if (pathStopProbability < RandomFloat01(payload.rngState))
+        if (pathStopProbability < randRR)
             break;
 #endif
 
