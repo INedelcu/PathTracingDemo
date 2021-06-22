@@ -148,8 +148,6 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
             commandBuffer.DispatchRays(renderPipelineAsset.rayTracingShader, "MainRayGenShader", (uint)camera.pixelWidth, (uint)camera.pixelHeight, 1, camera);
 
-            // TODO plug in the radiance variance.
-            //AtrousFilter(additionalData.rayTracingOutput, additionalData.gBufferWorldNormals, additionalData.gBufferIntersectionT, additionalData.rayTracingOutput);
             AtrousFilter(
                 renderPipelineAsset, 
                 commandBuffer, 
@@ -240,6 +238,8 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             aTrousShader.SetInt(Shader.PropertyToID("coordOffset"), level);
             aTrousShader.SetBool("FIRST_PASS", i == 0);
             aTrousShader.SetBool("LAST_PASS", level == asset.ATrousIterations);
+            aTrousShader.SetInt(Shader.PropertyToID("width"), radiance.width);
+            aTrousShader.SetInt(Shader.PropertyToID("height"), radiance.height);
 
             const int groupSizeX = 8;
             const int groupSizeY = 8;
