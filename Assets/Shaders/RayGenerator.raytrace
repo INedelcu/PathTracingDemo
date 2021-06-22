@@ -1,5 +1,6 @@
-//#define ENABLE_TEMPORAL_ACCUMULATION
+#define ENABLE_TEMPORAL_ACCUMULATION
 //#define ENABLE_CAMERA_MOTION_VECTORS
+//#define NAN_MARKER
 
 #include "UnityShaderVariables.cginc"
 #include "GlobalResources.hlsl"
@@ -72,7 +73,6 @@ void MainRayGenShader()
     payload.bounceRayOrigin         = float3(0, 0, 0);
     payload.bounceRayDirection      = float3(0, 0, 0);
     payload.lastWorldNormal         = float3(0, 0, 0);
-    payload.k                       = 1;
     payload.isShadowRay             = false;
 
     // Safe net for when shaders have compilation errors and don't increase the bounce index, resulting in an infinite loop.
@@ -89,11 +89,11 @@ void MainRayGenShader()
         // Accumulate emission from hit object
         radiance += payload.emission * throughput;
             
-        throughput *= payload.albedo / max(0.001, payload.k);
+        throughput *= payload.albedo;
 
 #ifdef ENABLE_CAMERA_MOTION_VECTORS
         // TODO: this is not 100% correct yet, static camera does not give 0 vectors!
-        if (payload.bounceIndexOpaque == 1)
+        if (payload.bounceIndexOpaque + payload.bounceIndexTransparent == 1)
         {
             float4 projCoords = mul(g_PreviousViewProjection, float4(payload.lastWorldPosition, 1.0));
             projCoords.xyz = projCoords.xyz / projCoords.w;
@@ -132,12 +132,11 @@ void MainRayGenShader()
             }
         }
 
-        float pathStopProbability = 1;
-
 #define ENABLE_RUSSIAN_ROULETTE 1
 
 #if ENABLE_RUSSIAN_ROULETTE
-        pathStopProbability = max(throughput.r, max(throughput.g, throughput.b));
+
+        float pathStopProbability = min(max(throughput.r, max(throughput.g, throughput.b)), 1.0);
 
 #ifdef USE_BLUENOISE_SAMPLING
         uint bounceNum = payload.bounceIndexOpaque + payload.bounceIndexTransparent;
@@ -149,9 +148,10 @@ void MainRayGenShader()
         // Dark colors have higher chance to terminate the path early.
         if (pathStopProbability < randRR)
             break;
-#endif
 
         throughput *= 1 / pathStopProbability;
+
+#endif // ENABLE_RUSSIAN_ROULETTE
 
         ray.Origin      = payload.bounceRayOrigin;
         ray.Direction   = payload.bounceRayDirection;
@@ -160,7 +160,7 @@ void MainRayGenShader()
 
 
 #ifdef ENABLE_TEMPORAL_ACCUMULATION
-    float alpha = 0.1;
+    float alpha = 0.2;
     float2 projCoord = frameCoord - motionVector;
     if (projCoord.x < 0 || projCoord.y < 0 || projCoord.x > launchDim.x || projCoord.y > launchDim.y)
         alpha = 1.0;
@@ -172,6 +172,11 @@ void MainRayGenShader()
     g_RadianceHistory[launchIndex] = float4(result, 1);
 #else
    g_Radiance[launchIndex] = float4(radiance, 1);
+#endif
+
+#ifdef NAN_MARKER
+    if (any(isnan(g_Radiance[launchIndex])))
+        g_Radiance[launchIndex] = float4(1.0, 0.0, 1.0, 1.0);
 #endif
 }
 
