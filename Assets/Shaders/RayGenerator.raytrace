@@ -87,10 +87,9 @@ void MainRayGenShader()
         if (payload.bounceIndexOpaque == 1)
         {
             float4 projCoords = mul(g_PreviousViewProjection, float4(payload.lastWorldPosition, 1.0));
-            projCoords.xyz = projCoords.xyz / projCoords.w; 
-            motionVector = ndcCoords - projCoords.xy;
-
-            motionVector *= (launchDim.xy / 2);
+            projCoords.xyz = projCoords.xyz / projCoords.w;
+            projCoords.xy = (projCoords.xy * 0.5 + 0.5) * float2(launchDim.x - 1, launchDim.y - 1);
+            motionVector = frameCoord - projCoords.xy;
         }
 #endif
             
@@ -145,14 +144,12 @@ void MainRayGenShader()
 
 
 #ifdef ENABLE_TEMPORAL_ACCUMULATION
-    float alpha = 0.125;
-
-    float2 projCoord = launchIndex + motionVector;
+    float alpha = 0.1;
+    float2 projCoord = frameCoord - motionVector;
     if (projCoord.x < 0 || projCoord.y < 0 || projCoord.x > launchDim.x || projCoord.y > launchDim.y)
-    {
-        alpha = 0;
-    }
-    float3 prevRadiance = g_RadianceHistory.Load(launchIndex + motionVector).xyz;
+        alpha = 1.0;
+
+    float3 prevRadiance = g_RadianceHistory.Load(projCoord).xyz;
 
     float3 result = lerp(prevRadiance, radiance, g_FrameIndex > 0 ? alpha : 1.0);
     g_Radiance[launchIndex] = float4(result, 1);
