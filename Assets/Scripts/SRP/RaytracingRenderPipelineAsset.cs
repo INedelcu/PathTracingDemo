@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
-    
+
 // The CreateAssetMenu attribute lets you create instances of this class in the Unity Editor.
 [CreateAssetMenu(menuName = "Rendering/RaytracingRenderPipelineAsset")]
 public class RaytracingRenderPipelineAsset : RenderPipelineAsset
@@ -14,6 +14,7 @@ public class RaytracingRenderPipelineAsset : RenderPipelineAsset
 
     public RayTracingShader rayTracingShader = null;
     public RayTracingShader rayTracingShaderGBuffer = null;
+    public ComputeShader aTrousShader = null;
     
     // replace with environment from Lighting window.
     public Cubemap envTexture = null;
