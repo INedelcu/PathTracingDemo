@@ -5,18 +5,22 @@
 */
 
 // kSamplerClampNearestUnormCoords for all of them.
+// All textures must have matching sizes.
 Texture2D<float4> radiance; // Source buffer
 Texture2D<float4> normals;
 Texture2D<float> depths;
-Texture2D<float> variance;// Prev variance buffer
+Texture2D<float> previousVariance;// Prev variance buffer
+RWTexture2D<float> destinationVariance;// Destination variance buffer
 RWTexture2D<float4> filteredRadiance; // Dest buffer
 
-int2 imageSize;
-
-float colSigma;
-float normSigma;
+float radianceSigma;
+float normalSigma;
 float depthSigma;
 int coordOffset;
+bool FIRST_PASS;
+bool LAST_PASS;
+int width;
+int height;
 
 #if !defined(BLOCK_SIZE)
 #define BLOCK_SIZE 8
@@ -68,7 +72,7 @@ void FILL_LOCAL_BUFFER_NORMALS_DEPTH(int2 local_id, Texture2D<float4> normals, T
       beg = (localX + localY*BLOCK_SIZE)*block; 
       end = beg + block; 
       end = clamp(end, 0, windowSize); 
-   } \
+   }
    localStart = (int2)((coord.x & (~(BLOCK_SIZE - 1))) - halfWindow, (coord.y & (~(BLOCK_SIZE - 1))) - halfWindow); 
    localStart = clamp(localStart, (int2)0, srcBufferSize - (int2)1); 
    for (int i = beg; i < end; ++i) 
@@ -110,6 +114,8 @@ while(0);
 // Similarity function
 static inline float C(float3 x1, float3 x2, float sigma)
 {
+   return 1.0f;
+   
    float3 distance = x1 - x2;
    float a = length(distance) / sigma;
    return exp(-a);
@@ -119,6 +125,8 @@ static inline float C(float3 x1, float3 x2, float sigma)
 // Depth similarity function
 static inline float dW(float x1, float x2, float sigma)
 {
+   return 1.0f;
+   
    float a = abs(x1 - x2) / sigma;
    return exp(-a);
 }
@@ -127,6 +135,8 @@ static inline float dW(float x1, float x2, float sigma)
 // Normals similarity function
 static inline float nW(float3 x1, float3 x2, float sigma)
 {
+   return 1.0f;
+   
    x1 = normalize(x1 + float3(0.01f, 0.01f, 0.01f));
    x2 = normalize(x2 + float3(0.01f, 0.01f, 0.01f));
    float a = max((float)0.0f, dot(x1, x2));
@@ -167,7 +177,9 @@ void ATrousKernel(
    int2 coord = global_id.xy;
 
    float2 gradDpt = 0.0f;
-
+ 
+   int2 imageSize = int2(width, height);
+   
    float4 dFdX, dFdY;
    int2 localStart;
    FILL_LOCAL_BUFFER_NORMALS_DEPTH(local_id.xy, normals, depths, imageSize, coord, 1, localStart);
@@ -177,12 +189,11 @@ void ATrousKernel(
    gradDpt.x = dFdX.w;
    gradDpt.y = dFdY.w;
 
-   // color variance value
-#ifdef FIRST_PASS
-   float colVar = length(float3(SampleGauss3x3F(local_id.xy, radiance, imageSize, coord, window).xyz));
-#else
-   float colVar = variance[coord];
-#endif
+   float colVar;// color variance value
+   if (FIRST_PASS)
+      colVar = length(float3(SampleGauss3x3F(local_id.xy, radiance, imageSize, coord).xyz));
+   else
+      colVar = previousVariance[coord];
 
    //B3 spline
    const float kernl[] =
@@ -205,44 +216,59 @@ void ATrousKernel(
 
    float4 output = float4(0.0f,0.0f,0.0f,0.0f);
    float sum  = 0.0f;
+   float vsum = 0.0f;
 
    for (int i = -2; i <= 2; ++i)
-      for (int j = -2; j <= 2; ++j)
-      {
-         int2 offsetUV;
-         offsetUV.x = coord.x + i * coordOffset;
-         offsetUV.y = coord.y + j * coordOffset;
+   {
+	   for (int j = -2; j <= 2; ++j)
+	   {
+		   int2 offsetUV;
+		   offsetUV.x = coord.x + i * coordOffset;
+		   offsetUV.y = coord.y + j * coordOffset;
 
-         REFLECT(offsetUV.x, imageSize.x)
-         REFLECT(offsetUV.y, imageSize.y)
-         offsetUV.x = clamp(offsetUV.x, (int)0, (int)imageSize.x-1);
-         offsetUV.y = clamp(offsetUV.y, (int)0, (int)imageSize.y-1);
+		   REFLECT(offsetUV.x, imageSize.x)
+		   REFLECT(offsetUV.y, imageSize.y)
+		   offsetUV.x = clamp(offsetUV.x, (int)0, (int)imageSize.x - 1);
+		   offsetUV.y = clamp(offsetUV.y, (int)0, (int)imageSize.y - 1);
 
-         float coeff = kernl[i + 2 + (j + 2) * 5];
+		   float coeff = kernl[i + 2 + (j + 2) * 5];
 
-         float3 c = radiance[offsetUV].xyz;
+		   float3 c = radiance[offsetUV].xyz;
 
-         float multiplier = C(c, qcol, colSigma * sqrt(colVar) + 1.0e-5f);
-         coeff *= multiplier > 0.0f ? multiplier : 0.0f;
+		   float multiplier = C(c, qcol, radianceSigma * sqrt(colVar) + 1.0e-5f);
+		   coeff *= multiplier > 0.0f ? multiplier : 0.0f;
 
-         // Normal edge stopping
-         float3 normal = normals[offsetUV].xyz;
-         float depth   = depths[offsetUV];
-         
-         multiplier = nW(normal.xyz, qnorm, normSigma);
-         coeff *= multiplier > 0.0f ? multiplier : 0.0f;
+		   // Normal edge stopping
+		   float3 normal = normals[offsetUV].xyz;
+		   float depth = depths[offsetUV];
 
-         // Depth edge stopping
-         multiplier = dW(depth, qdpt, depthSigma * abs(dot(gradDpt, float2(i * coordOffset, j * coordOffset))) + 1.0e-3f);
-         coeff *= multiplier > 0.0f ? multiplier : 0.0f;
+		   multiplier = nW(normal.xyz, qnorm, normalSigma);
+		   coeff *= multiplier > 0.0f ? multiplier : 0.0f;
 
-         output.xyz += c * coeff;
+		   // Depth edge stopping
+		   multiplier = dW(depth, qdpt, depthSigma * abs(dot(gradDpt, float2(i * coordOffset, j * coordOffset))) + 1.0e-3f);
+		   coeff *= multiplier > 0.0f ? multiplier : 0.0f;
 
-         sum += coeff;
-      }
+		   output.xyz += c * coeff;
+		   if (FIRST_PASS)
+			   vsum += length(c) * coeff * coeff;
+		   else
+			   vsum += previousVariance[offsetUV] * coeff * coeff;
+
+		   sum += coeff;
+	   }
+   }
 
    output.w   = srcAlpha;
    output.xyz = sum > float3(0.0f, 0.0f, 0.0f) ? output.xyz / sum : float3(0.0f, 0.0f, 0.0f);
 
+   if (LAST_PASS == false)
+   {
+      vsum /= sum * sum;
+
+      //Back prop variance
+      destinationVariance[coord] = vsum;
+   }
+   
    filteredRadiance[coord] = output;
 }
