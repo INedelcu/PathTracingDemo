@@ -35,12 +35,16 @@ public class SceneInstancing : MonoBehaviour
                 {
                     for (var k = 0; k < instances.y; k++)
                     {
+                        if (k == 0 && j == 0)
+                            continue;
+
                         var instance = Instantiate(rendererArray[i]);
                         instance.hideFlags = HideFlags.HideAndDontSave;
                         instance.gameObject.hideFlags = HideFlags.HideAndDontSave;
                         instance.gameObject.transform.position = rendererArray[i].transform.position + new Vector3(j * instanceSpacing.x, 0, k * instanceSpacing.y);
                         // Note: this will probably not work on every scene.
                         instance.gameObject.transform.localScale = rendererArray[i].transform.lossyScale;
+                        instance.gameObject.transform.rotation = rendererArray[i].transform.rotation;
 
                         instancedRenderes.Add(instance);
                     }
@@ -55,7 +59,7 @@ public class SceneInstancing : MonoBehaviour
     void Update()
     {
         // Check if the instance count has changed
-        if (instancedRenderes.Count != instances.x * instances.y * numRenderers)
+        if (instancedRenderes.Count != instances.x * instances.y * numRenderers - numRenderers)
         {
             ClearInstances();
             InitInstances();

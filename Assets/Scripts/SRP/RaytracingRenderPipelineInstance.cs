@@ -172,7 +172,15 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
         foreach (Camera camera in cameras)
         {
             CreateResources(camera);
-                
+
+            var additionalData = camera.GetComponent<AdditionalCameraData>();
+            if (additionalData == null)
+            {
+                additionalData = camera.gameObject.AddComponent<AdditionalCameraData>();
+                additionalData.hideFlags = HideFlags.HideAndDontSave;   // Don't show this in inspector
+            }
+            additionalData.CreatePersistentResources(camera);
+
             if (!renderPipelineAsset.rayTracingShader || !renderPipelineAsset.rayTracingShaderGBuffer)
             {
                 Debug.LogError("No RayTracing shader!");
@@ -212,8 +220,9 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             renderPipelineAsset.rayTracingShader.SetAccelerationStructure(Shader.PropertyToID("g_AccelStruct"), rayTracingAccelerationStructure);
             renderPipelineAsset.rayTracingShader.SetFloat(Shader.PropertyToID("g_Zoom"), Mathf.Tan(Mathf.Deg2Rad * camera.fieldOfView * 0.5f));
             renderPipelineAsset.rayTracingShader.SetFloat(Shader.PropertyToID("g_AspectRatio"), camera.pixelWidth / (float)camera.pixelHeight);
-            renderPipelineAsset.rayTracingShader.SetInt(Shader.PropertyToID("g_FrameIndex"), Time.frameCount);
+            renderPipelineAsset.rayTracingShader.SetInt(Shader.PropertyToID("g_FrameIndex"), additionalData.frameIndex);
             renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_EnvTex"), renderPipelineAsset.envTexture);
+            renderPipelineAsset.rayTracingShader.SetMatrix(Shader.PropertyToID("g_PreviousViewProjection"), additionalData.previousViewProjection);
 
             Light dirLight = Object.FindObjectOfType<Light>();
             if(dirLight && dirLight.type==LightType.Directional)
@@ -236,6 +245,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
             // Output
             renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_Radiance"), rayTracingOutput);
+            renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_RadianceHistory"), additionalData.colorHistory);
 
             commandBuffer.DispatchRays(renderPipelineAsset.rayTracingShader, "MainRayGenShader", (uint)camera.pixelWidth, (uint)camera.pixelHeight, 1, camera);
 
@@ -281,6 +291,8 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             }
 
             ReleaseResources();
+            
+            additionalData.UpdateCameraDataPostRender(camera);
         }
         commandBuffer.Release();
     }
