@@ -141,7 +141,7 @@ void MainRayGenShader()
 
 #ifdef USE_BLUENOISE_SAMPLING
         uint bounceNum = payload.bounceIndexOpaque + payload.bounceIndexTransparent;
-        float randRR = GetBNDSequenceSample(launchIndex, 0, NB_RAND_BOUNCE * bounceNum + 3);
+        float randRR = GetBNDSequenceSample(launchIndex, payload.rngState, NB_RAND_BOUNCE * bounceNum + 3);
 #else
         float randRR = RandomFloat01(payload.rngState);
 #endif

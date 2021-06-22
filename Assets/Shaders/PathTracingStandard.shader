@@ -188,7 +188,7 @@ Shader "PathTracing/Standard"
                 // Calculate whether we are going to do a diffuse or specular reflection ray 
 #ifdef USE_BLUENOISE_SAMPLING
                 uint bounceNum = payload.bounceIndexOpaque + payload.bounceIndexTransparent;
-                float doSpecular = (GetBNDSequenceSample(launchIndex, 0, NB_RAND_BOUNCE * bounceNum + 2) < specularChance) ? 1 : 0;
+                float doSpecular = (GetBNDSequenceSample(launchIndex, payload.rngState, NB_RAND_BOUNCE * bounceNum + 2) < specularChance) ? 1 : 0;
 #else
                 float doSpecular = (RandomFloat01(payload.rngState) < specularChance) ? 1 : 0;
 #endif
