@@ -4,22 +4,25 @@
    see: https://jo.dreggn.org/home/2010_atrous.pdf
 */
 
-Texture2D<float4> radiance;
+// kSamplerClampNearestUnormCoords for all of them.
+Texture2D<float4> radiance; // Source buffer
 Texture2D<float4> normals;
-Texture2D<float4> depth;
-RWTexture2D<float4> filteredRadiance;
-//__read_only image2d_t radiance, // Source buffer
-//__read_only image2d_t dynarg_srcTile1, // Normals/ChartId buffer
-//__read_only image2d_t dynarg_srcTile2, // Prev variance buffer
-//__write_only image2d_t dynarg_dstTile , // Dest buffer
-//__write_only image2d_t dynarg_dstTile1, // Dest variance buffer
+Texture2D<float> depths;
+Texture2D<float> variance;// Prev variance buffer
+RWTexture2D<float4> filteredRadiance; // Dest buffer
+
 int2 imageSize;
-float4 sigma;
+
+float colSigma;
+float normSigma;
+float depthSigma;
 int coordOffset;
 
 #if !defined(BLOCK_SIZE)
 #define BLOCK_SIZE 8
 #endif
+
+groupshared	float4 window[(BLOCK_SIZE + 2)*(BLOCK_SIZE + 2)];
 
 // ----------------------------------------------------------------------------------------------------
 
@@ -29,31 +32,54 @@ int coordOffset;
 
 // ----------------------------------------------------------------------------------------------------
 
-#define FILL_LOCAL_BUFFER(threadId, source, srcBufferSize, coord, localBuff, halfWindow, localStart) \
-do \
-{ \
-   int localX = threadId.x; \
-   int localY = threadId.y; \
-   int beg = 0, end = 0; \
-   int windowSize = (BLOCK_SIZE + halfWindow*2)*(BLOCK_SIZE + halfWindow*2); \
-   int block = ceil((float)(windowSize) / (BLOCK_SIZE * BLOCK_SIZE)); \
-   if (localX + localY*BLOCK_SIZE <= ceil((float)(windowSize) / block)) \
-   { \
-      beg = (localX + localY*BLOCK_SIZE)*block; \
-      end = beg + block; \
-      end = clamp(end, 0, windowSize); \
+void FILL_LOCAL_BUFFER_RADIANCE(int2 local_id, Texture2D<float4> radiance, int2 srcBufferSize, int2 coord, int halfWindow, inout int2 localStart)
+{
+      int localX = local_id.x; 
+      int localY = local_id.y; 
+      int beg = 0, end = 0; 
+      int windowSize = (BLOCK_SIZE + halfWindow*2)*(BLOCK_SIZE + halfWindow*2); 
+      int block = ceil((float)(windowSize) / (BLOCK_SIZE * BLOCK_SIZE)); 
+      if (localX + localY*BLOCK_SIZE <= ceil((float)(windowSize) / block)) 
+      { 
+         beg = (localX + localY*BLOCK_SIZE)*block; 
+         end = beg + block; 
+         end = clamp(end, 0, windowSize); 
+      } \
+      localStart = (int2)((coord.x & (~(BLOCK_SIZE - 1))) - halfWindow, (coord.y & (~(BLOCK_SIZE - 1))) - halfWindow); 
+      localStart = clamp(localStart, (int2)0, srcBufferSize - (int2)1); 
+      for (int i = beg; i < end; ++i) 
+      { 
+         int2 xy = (int2)(localStart.x + (i % (BLOCK_SIZE + halfWindow*2)), localStart.y + (i / (BLOCK_SIZE + halfWindow*2))); 
+         xy = clamp(xy, 0, srcBufferSize - (int2)1); 
+         window[i] = radiance[xy]; 
+      } 
+      GroupMemoryBarrierWithGroupSync(); 
+}
+
+void FILL_LOCAL_BUFFER_NORMALS_DEPTH(int2 local_id, Texture2D<float4> normals, Texture2D<float> depths, int2 srcBufferSize, int2 coord, int halfWindow, inout int2 localStart)
+{
+   int localX = local_id.x; 
+   int localY = local_id.y; 
+   int beg = 0, end = 0; 
+   int windowSize = (BLOCK_SIZE + halfWindow*2)*(BLOCK_SIZE + halfWindow*2); 
+   int block = ceil((float)(windowSize) / (BLOCK_SIZE * BLOCK_SIZE)); 
+   if (localX + localY*BLOCK_SIZE <= ceil((float)(windowSize) / block)) 
+   { 
+      beg = (localX + localY*BLOCK_SIZE)*block; 
+      end = beg + block; 
+      end = clamp(end, 0, windowSize); 
    } \
-   localStart = (int2)((coord.x & (~(BLOCK_SIZE - 1))) - halfWindow, (coord.y & (~(BLOCK_SIZE - 1))) - halfWindow); \
-   localStart = clamp(localStart, (int2)0, srcBufferSize - (int2)1); \
-   for (int i = beg; i < end; ++i) \
-   { \
-      int2 xy = (int2)(localStart.x + (i % (BLOCK_SIZE + halfWindow*2)), localStart.y + (i / (BLOCK_SIZE + halfWindow*2))); \
-      xy = clamp(xy, 0, srcBufferSize - (int2)1); \
-      localBuff[i] = read_imagef(source, kSamplerClampNearestUnormCoords, xy); \
-   } \
-   GroupMemoryBarrierWithGroupSync(); \
-} \
-while(0);
+   localStart = (int2)((coord.x & (~(BLOCK_SIZE - 1))) - halfWindow, (coord.y & (~(BLOCK_SIZE - 1))) - halfWindow); 
+   localStart = clamp(localStart, (int2)0, srcBufferSize - (int2)1); 
+   for (int i = beg; i < end; ++i) 
+   { 
+      int2 xy = (int2)(localStart.x + (i % (BLOCK_SIZE + halfWindow*2)), localStart.y + (i / (BLOCK_SIZE + halfWindow*2))); 
+      xy = clamp(xy, 0, srcBufferSize - (int2)1); 
+      window[i].xyz = normals[xy].xyz;
+      window[i].w = depths[xy];
+   } 
+   GroupMemoryBarrierWithGroupSync(); 
+}
 
 // ----------------------------------------------------------------------------------------------------
 
@@ -109,13 +135,13 @@ static inline float nW(float3 x1, float3 x2, float sigma)
 }
 
 // ----------------------------------------------------------------------------------------------------
-static inline float4 SampleGauss3x3F(Texture2D<float4> radiance, int2 buffer_size, int2 coord, Texture2D<float4> window)
+static inline float4 SampleGauss3x3F(int2 local_id, Texture2D<float4> radiance, int2 buffer_size, int2 coord)
 {
    int2 tl = clamp(coord - (int2)1, (int2)0, buffer_size - (int2)1);
    int2 br = clamp(coord + (int2)1, (int2)0, buffer_size - (int2)1);
    int2 localStart;
 
-   FILL_LOCAL_BUFFER(coord, radiance, buffer_size, coord, window, 1, localStart);
+   FILL_LOCAL_BUFFER_RADIANCE(local_id, radiance, buffer_size, coord, 1, localStart);
 
    float4 bluredVal = 0.077847f * (
       window[(tl.x - localStart.x) + (BLOCK_SIZE + 2)*(tl.y - localStart.y)]
@@ -133,16 +159,18 @@ static inline float4 SampleGauss3x3F(Texture2D<float4> radiance, int2 buffer_siz
    return bluredVal;
 }
 
-// ----------------------------------------------------------------------------------------------------
-void ATrousKernel(uint3 coord3 : SV_DispatchThreadID)
+[numthreads(8,8,1)]
+void ATrousKernel(
+   uint3 global_id : SV_DispatchThreadID,
+   uint3 local_id : SV_GroupThreadID)
 {
-   int2 coord = coord3.xy;//(int2)(get_global_id(0), get_global_id(1));
+   int2 coord = global_id.xy;
 
    float2 gradDpt = 0.0f;
-   float4 window[(BLOCK_SIZE + 2)*(BLOCK_SIZE + 2)];
+
    float4 dFdX, dFdY;
    int2 localStart;
-   FILL_LOCAL_BUFFER(coord, dynarg_srcTile1, imageSize, coord, window, 1, localStart);
+   FILL_LOCAL_BUFFER_NORMALS_DEPTH(local_id.xy, normals, depths, imageSize, coord, 1, localStart);
    DERIVATE(window, imageSize, coord, 1, localStart, dFdX, dFdY);
    GroupMemoryBarrierWithGroupSync();
 
@@ -151,9 +179,9 @@ void ATrousKernel(uint3 coord3 : SV_DispatchThreadID)
 
    // color variance value
 #ifdef FIRST_PASS
-   float colVar = length(float3(SampleGauss3x3F(radiance, imageSize, coord, window).xyz));
+   float colVar = length(float3(SampleGauss3x3F(local_id.xy, radiance, imageSize, coord, window).xyz));
 #else
-   float colVar = READ_IMAGEF_SAFE(dynarg_srcTile2, kSamplerClampNearestUnormCoords, coord).x;
+   float colVar = variance[coord];
 #endif
 
    //B3 spline
@@ -167,21 +195,16 @@ void ATrousKernel(uint3 coord3 : SV_DispatchThreadID)
    };
 
    // color value at the center of the window
-   float4 temp = READ_IMAGEF_SAFE(radiance, kSamplerClampNearestUnormCoords, coord);
+   float4 temp = radiance[coord];
    float3 qcol = temp.xyz;
    const float srcAlpha = temp.w;
 
    // normal/depth value at the center of the window
-   float3 qnorm = READ_IMAGEF_SAFE(normals, kSamplerClampNearestUnormCoords, coord);
-   float qdpt   = READ_IMAGEF_SAFE(depth, kSamplerClampNearestUnormCoords, coord);
+   float3 qnorm = normals[coord].xyz;
+   float qdpt   = depths[coord];
 
-   float4 output = float4(0.0f);
+   float4 output = float4(0.0f,0.0f,0.0f,0.0f);
    float sum  = 0.0f;
-   float vsum = 0.0f;
-
-   const float colSigma   = sigma.x;
-   const float normSigma  = sigma.y;
-   const float depthSigma = sigma.z;
 
    for (int i = -2; i <= 2; ++i)
       for (int j = -2; j <= 2; ++j)
@@ -197,48 +220,29 @@ void ATrousKernel(uint3 coord3 : SV_DispatchThreadID)
 
          float coeff = kernl[i + 2 + (j + 2) * 5];
 
-         float4 temp;
-         float3 c;
-         float multiplier;
+         float3 c = radiance[offsetUV].xyz;
 
-         temp = READ_IMAGEF_SAFE(radiance, kSamplerClampNearestUnormCoords, offsetUV);
-         c = temp.xyz;
-
-         multiplier = C(c, qcol, colSigma * sqrt(colVar) + 1.0e-5f);
+         float multiplier = C(c, qcol, colSigma * sqrt(colVar) + 1.0e-5f);
          coeff *= multiplier > 0.0f ? multiplier : 0.0f;
 
          // Normal edge stopping
-         temp = READ_IMAGEF_SAFE(dynarg_srcTile1, kSamplerClampNearestUnormCoords, offsetUV);
-         multiplier = nW(temp.xyz, qnorm, normSigma);
+         float3 normal = normals[offsetUV].xyz;
+         float depth   = depths[offsetUV];
+         
+         multiplier = nW(normal.xyz, qnorm, normSigma);
          coeff *= multiplier > 0.0f ? multiplier : 0.0f;
 
          // Depth edge stopping
-         multiplier = dW(temp.w, qdpt, depthSigma * abs(dot(gradDpt, float2(i * coordOffset, j * coordOffset))) + 1.0e-3f);
+         multiplier = dW(depth, qdpt, depthSigma * abs(dot(gradDpt, float2(i * coordOffset, j * coordOffset))) + 1.0e-3f);
          coeff *= multiplier > 0.0f ? multiplier : 0.0f;
-
-         //temp = ReadPixelTyped(transBuff, cx, cy);
-         //multiplier = C(temp.xyz / temp.w, qtrans, transSigma);
-         //coeff *= multiplier > 0.0f ? multiplier : 0.0f;
 
          output.xyz += c * coeff;
 
-#ifdef FIRST_PASS
-         vsum += fast_length(c) * coeff * coeff;
-#else
-         vsum += READ_IMAGEF_SAFE(dynarg_srcTile2, kSamplerClampNearestUnormCoords, offsetUV).x * coeff * coeff;
-#endif
          sum += coeff;
       }
 
    output.w   = srcAlpha;
    output.xyz = sum > float3(0.0f, 0.0f, 0.0f) ? output.xyz / sum : float3(0.0f, 0.0f, 0.0f);
 
-#if !defined(LAST_PASS)
-   vsum /= sum * sum;
-
-   //Back prop variance
-   WRITE_IMAGEF_SAFE(dynarg_dstTile1, coord, float4(vsum,vsum,vsum,vsum));
-#endif
-
-   WRITE_IMAGEF_SAFE(dynarg_dstTile, coord, output);
+   filteredRadiance[coord] = output;
 }
