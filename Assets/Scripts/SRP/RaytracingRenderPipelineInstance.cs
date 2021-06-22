@@ -93,33 +93,33 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             // Generate GBuffer for denoising input.
-            renderPipelineAsset.rayTracingShaderGBuffer.SetShaderPass("PathTracingGBuffer");
+            commandBuffer.SetRayTracingShaderPass(renderPipelineAsset.rayTracingShaderGBuffer, "PathTracingGBuffer");
 
             // Input
-            renderPipelineAsset.rayTracingShaderGBuffer.SetAccelerationStructure(Shader.PropertyToID("g_AccelStruct"), rayTracingAccelerationStructure);
-            renderPipelineAsset.rayTracingShaderGBuffer.SetFloat(Shader.PropertyToID("g_Zoom"), Mathf.Tan(Mathf.Deg2Rad * camera.fieldOfView * 0.5f));
-            renderPipelineAsset.rayTracingShaderGBuffer.SetFloat(Shader.PropertyToID("g_AspectRatio"), camera.pixelWidth / (float)camera.pixelHeight);
+            commandBuffer.SetRayTracingAccelerationStructure(renderPipelineAsset.rayTracingShaderGBuffer, Shader.PropertyToID("g_AccelStruct"), rayTracingAccelerationStructure);
+            commandBuffer.SetRayTracingFloatParam(renderPipelineAsset.rayTracingShaderGBuffer, Shader.PropertyToID("g_Zoom"), Mathf.Tan(Mathf.Deg2Rad * camera.fieldOfView * 0.5f));
+            commandBuffer.SetRayTracingFloatParam(renderPipelineAsset.rayTracingShaderGBuffer, Shader.PropertyToID("g_AspectRatio"), camera.pixelWidth / (float)camera.pixelHeight);
 
             // Output
-            renderPipelineAsset.rayTracingShaderGBuffer.SetTexture(Shader.PropertyToID("g_GBufferWorldNormals"), additionalData.gBufferWorldNormals);
-            renderPipelineAsset.rayTracingShaderGBuffer.SetTexture(Shader.PropertyToID("g_GBufferIntersectionT"), additionalData.gBufferIntersectionT);
-            renderPipelineAsset.rayTracingShaderGBuffer.SetTexture(Shader.PropertyToID("g_GBufferMotionVectors"), additionalData.gBufferMotionVectors);
+            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShaderGBuffer, Shader.PropertyToID("g_GBufferWorldNormals"), additionalData.gBufferWorldNormals);
+            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShaderGBuffer, Shader.PropertyToID("g_GBufferIntersectionT"), additionalData.gBufferIntersectionT);
+            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShaderGBuffer, Shader.PropertyToID("g_GBufferMotionVectors"), additionalData.gBufferMotionVectors);
 
             commandBuffer.DispatchRays(renderPipelineAsset.rayTracingShaderGBuffer, "MainRayGenShader", (uint)camera.pixelWidth, (uint)camera.pixelHeight, 1, camera);
-    
+
 
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             // Path tracing
-            renderPipelineAsset.rayTracingShader.SetShaderPass("PathTracing");
+            commandBuffer.SetRayTracingShaderPass(renderPipelineAsset.rayTracingShader, "PathTracing");
 
             // Input
-            renderPipelineAsset.rayTracingShader.SetAccelerationStructure(Shader.PropertyToID("g_AccelStruct"), rayTracingAccelerationStructure);
-            renderPipelineAsset.rayTracingShader.SetFloat(Shader.PropertyToID("g_Zoom"), Mathf.Tan(Mathf.Deg2Rad * camera.fieldOfView * 0.5f));
-            renderPipelineAsset.rayTracingShader.SetFloat(Shader.PropertyToID("g_AspectRatio"), camera.pixelWidth / (float)camera.pixelHeight);
+            commandBuffer.SetRayTracingAccelerationStructure(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_AccelStruct"), rayTracingAccelerationStructure);
+            commandBuffer.SetRayTracingFloatParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_Zoom"), Mathf.Tan(Mathf.Deg2Rad * camera.fieldOfView * 0.5f));
+            commandBuffer.SetRayTracingFloatParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_AspectRatio"), camera.pixelWidth / (float)camera.pixelHeight);
             int frameIndex = renderPipelineAsset.EnableTemporal ? additionalData.frameIndex : 0;
-            renderPipelineAsset.rayTracingShader.SetInt(Shader.PropertyToID("g_FrameIndex"), frameIndex);
-            renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_EnvTex"), renderPipelineAsset.envTexture);
-            renderPipelineAsset.rayTracingShader.SetMatrix(Shader.PropertyToID("g_PreviousViewProjection"), additionalData.previousViewProjection);
+            commandBuffer.SetRayTracingIntParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_FrameIndex"), frameIndex);
+            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_EnvTex"), renderPipelineAsset.envTexture);
+            commandBuffer.SetRayTracingMatrixParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_PreviousViewProjection"), additionalData.previousViewProjection);
 
             Light dirLight = Object.FindObjectOfType<Light>();
             if(dirLight && dirLight.type==LightType.Directional)
@@ -129,22 +129,22 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
                 int castShadows = dirLight.shadows != LightShadows.None ? 1:0;
 
-                renderPipelineAsset.rayTracingShader.SetInt(Shader.PropertyToID("g_UseDirectionalLight"), 1);
-                renderPipelineAsset.rayTracingShader.SetInt(Shader.PropertyToID("g_DirectionalLightShadows"), castShadows);
+                commandBuffer.SetRayTracingIntParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_UseDirectionalLight"), 1);
+                commandBuffer.SetRayTracingIntParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_DirectionalLightShadows"), castShadows);
                 Color lightColor = dirLight.color * dirLight.intensity;
-                renderPipelineAsset.rayTracingShader.SetVector(Shader.PropertyToID("g_DirectionalLight"), new Vector4(dirLight.transform.forward.x,dirLight.transform.forward.y,dirLight.transform.forward.z, 0.0f));
-                renderPipelineAsset.rayTracingShader.SetVector(Shader.PropertyToID("g_DirectionalLightColor"), new Vector4(lightColor.r, lightColor.g, lightColor.b, 0.0f));
+                commandBuffer.SetRayTracingVectorParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_DirectionalLight"), new Vector4(dirLight.transform.forward.x,dirLight.transform.forward.y,dirLight.transform.forward.z, 0.0f));
+                commandBuffer.SetRayTracingVectorParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_DirectionalLightColor"), new Vector4(lightColor.r, lightColor.g, lightColor.b, 0.0f));
             }
             else
             {
-                renderPipelineAsset.rayTracingShader.SetInt(Shader.PropertyToID("g_UseDirectionalLight"), 0);
+                commandBuffer.SetRayTracingIntParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_UseDirectionalLight"), 0);
             }
 
             BindDitheredTextureSet(commandBuffer, ditheredTextureSet);
 
             // Output
-            renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_Radiance"), additionalData.rayTracingOutput);
-            renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_RadianceHistory"), additionalData.colorHistory);
+            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_Radiance"), additionalData.rayTracingOutput);
+            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_RadianceHistory"), additionalData.colorHistory);
 
             commandBuffer.DispatchRays(renderPipelineAsset.rayTracingShader, "MainRayGenShader", (uint)camera.pixelWidth, (uint)camera.pixelHeight, 1, camera);
 
@@ -226,20 +226,20 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             int level = i + 1;
             int sourceIndex = i % 2;
             int destinationIndex = level % 2;
-            aTrousShader.SetTexture(kernelIndex, Shader.PropertyToID("radiance"), radianceBuffers[sourceIndex]);
-            aTrousShader.SetTexture(kernelIndex, Shader.PropertyToID("normals"), normals);
-            aTrousShader.SetTexture(kernelIndex, Shader.PropertyToID("depths"), depth);
-            aTrousShader.SetTexture(kernelIndex, Shader.PropertyToID("previousVariance"), varianceBuffers[sourceIndex]);
-            aTrousShader.SetTexture(kernelIndex, Shader.PropertyToID("destinationVariance"), varianceBuffers[destinationIndex]);
-            aTrousShader.SetTexture(kernelIndex, Shader.PropertyToID("filteredRadiance"), radianceBuffers[destinationIndex]);
-            aTrousShader.SetFloat(Shader.PropertyToID("radianceSigma"), asset.aTrousRadianceSigma);
-            aTrousShader.SetFloat(Shader.PropertyToID("normalSigma"), asset.aTrousNormalSigma);
-            aTrousShader.SetFloat(Shader.PropertyToID("depthSigma"), asset.aTrousDepthSigma);
-            aTrousShader.SetInt(Shader.PropertyToID("coordOffset"), level);
-            aTrousShader.SetBool("FIRST_PASS", i == 0);
-            aTrousShader.SetBool("LAST_PASS", level == asset.ATrousIterations);
-            aTrousShader.SetInt(Shader.PropertyToID("width"), radiance.width);
-            aTrousShader.SetInt(Shader.PropertyToID("height"), radiance.height);
+            commandBuffer.SetComputeTextureParam(aTrousShader, kernelIndex, Shader.PropertyToID("radiance"), radianceBuffers[sourceIndex]);
+            commandBuffer.SetComputeTextureParam(aTrousShader, kernelIndex, Shader.PropertyToID("normals"), normals);
+            commandBuffer.SetComputeTextureParam(aTrousShader, kernelIndex, Shader.PropertyToID("depths"), depth);
+            commandBuffer.SetComputeTextureParam(aTrousShader, kernelIndex, Shader.PropertyToID("previousVariance"), varianceBuffers[sourceIndex]);
+            commandBuffer.SetComputeTextureParam(aTrousShader, kernelIndex, Shader.PropertyToID("destinationVariance"), varianceBuffers[destinationIndex]);
+            commandBuffer.SetComputeTextureParam(aTrousShader, kernelIndex, Shader.PropertyToID("filteredRadiance"), radianceBuffers[destinationIndex]);
+            commandBuffer.SetComputeFloatParam(aTrousShader, Shader.PropertyToID("radianceSigma"), asset.aTrousRadianceSigma);
+            commandBuffer.SetComputeFloatParam(aTrousShader, Shader.PropertyToID("normalSigma"), asset.aTrousNormalSigma);
+            commandBuffer.SetComputeFloatParam(aTrousShader, Shader.PropertyToID("depthSigma"), asset.aTrousDepthSigma);
+            commandBuffer.SetComputeIntParam(aTrousShader, Shader.PropertyToID("coordOffset"), level);
+            commandBuffer.SetComputeIntParam(aTrousShader, Shader.PropertyToID("FIRST_PASS"), i == 0 ? 1 : 0);
+            commandBuffer.SetComputeIntParam(aTrousShader, Shader.PropertyToID("LAST_PASS"), level == asset.ATrousIterations ? 1 : 0);
+            commandBuffer.SetComputeIntParam(aTrousShader, Shader.PropertyToID("width"), radiance.width);
+            commandBuffer.SetComputeIntParam(aTrousShader, Shader.PropertyToID("height"), radiance.height);
 
             const int groupSizeX = 8;
             const int groupSizeY = 8;
