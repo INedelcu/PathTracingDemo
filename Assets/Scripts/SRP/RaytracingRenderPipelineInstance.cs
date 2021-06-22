@@ -37,6 +37,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
     private RenderTexture rayTracingOutput = null;
     private RenderTexture gBufferWorldNormals = null;
     private RenderTexture gBufferIntersectionT = null;
+    private RenderTexture gBufferMotionVectors = null;
     
     public RayTracingAccelerationStructure rayTracingAccelerationStructure = null;
     
@@ -56,6 +57,11 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
         {
             gBufferIntersectionT.Release();
             gBufferIntersectionT = null;
+        }
+        if (gBufferMotionVectors != null)
+        {
+            gBufferMotionVectors.Release();
+            gBufferMotionVectors = null;
         }
     }
 
@@ -122,6 +128,26 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             gBufferIntersectionT = new RenderTexture(rtDesc);
             gBufferIntersectionT.Create();
         }
+        {
+            if (gBufferMotionVectors)
+                gBufferMotionVectors.Release();
+
+            RenderTextureDescriptor rtDesc = new RenderTextureDescriptor()
+            {
+                dimension = TextureDimension.Tex2D,
+                width = camera.pixelWidth,
+                height = camera.pixelHeight,
+                depthBufferBits = 0,
+                volumeDepth = 1,
+                msaaSamples = 1,
+                vrUsage = VRTextureUsage.OneEye,
+                graphicsFormat = GraphicsFormat.R32G32B32A32_SFloat,
+                enableRandomWrite = true,
+            };
+
+            gBufferMotionVectors = new RenderTexture(rtDesc);
+            gBufferMotionVectors.Create();
+        }
     }
 
     protected override void Render (ScriptableRenderContext context, Camera[] cameras)
@@ -146,7 +172,15 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
         foreach (Camera camera in cameras)
         {
             CreateResources(camera);
-                
+
+            var additionalData = camera.GetComponent<AdditionalCameraData>();
+            if (additionalData == null)
+            {
+                additionalData = camera.gameObject.AddComponent<AdditionalCameraData>();
+                additionalData.hideFlags = HideFlags.HideAndDontSave;   // Don't show this in inspector
+            }
+            additionalData.CreatePersistentResources(camera);
+
             if (!renderPipelineAsset.rayTracingShader || !renderPipelineAsset.rayTracingShaderGBuffer)
             {
                 Debug.LogError("No RayTracing shader!");
@@ -155,7 +189,9 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             
             if (rayTracingAccelerationStructure == null)
                 return;
-            
+
+            camera.depthTextureMode = DepthTextureMode.Depth | DepthTextureMode.MotionVectors;
+
             // Update the value of built-in shader variables, based on the current Camera
             context.SetupCameraProperties(camera);
 
@@ -169,8 +205,9 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             renderPipelineAsset.rayTracingShaderGBuffer.SetFloat(Shader.PropertyToID("g_AspectRatio"), camera.pixelWidth / (float)camera.pixelHeight);
 
             // Output
-            renderPipelineAsset.rayTracingShaderGBuffer.SetTexture(Shader.PropertyToID("g_WorldNormals"), gBufferWorldNormals);
-            renderPipelineAsset.rayTracingShaderGBuffer.SetTexture(Shader.PropertyToID("g_IntersectionT"), gBufferIntersectionT);
+            renderPipelineAsset.rayTracingShaderGBuffer.SetTexture(Shader.PropertyToID("g_GBufferWorldNormals"), gBufferWorldNormals);
+            renderPipelineAsset.rayTracingShaderGBuffer.SetTexture(Shader.PropertyToID("g_GBufferIntersectionT"), gBufferIntersectionT);
+            renderPipelineAsset.rayTracingShaderGBuffer.SetTexture(Shader.PropertyToID("g_GBufferMotionVectors"), gBufferMotionVectors);
 
             commandBuffer.DispatchRays(renderPipelineAsset.rayTracingShaderGBuffer, "MainRayGenShader", (uint)camera.pixelWidth, (uint)camera.pixelHeight, 1, camera);
     
@@ -183,8 +220,9 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             renderPipelineAsset.rayTracingShader.SetAccelerationStructure(Shader.PropertyToID("g_AccelStruct"), rayTracingAccelerationStructure);
             renderPipelineAsset.rayTracingShader.SetFloat(Shader.PropertyToID("g_Zoom"), Mathf.Tan(Mathf.Deg2Rad * camera.fieldOfView * 0.5f));
             renderPipelineAsset.rayTracingShader.SetFloat(Shader.PropertyToID("g_AspectRatio"), camera.pixelWidth / (float)camera.pixelHeight);
-            renderPipelineAsset.rayTracingShader.SetInt(Shader.PropertyToID("g_FrameIndex"), Time.frameCount);
+            renderPipelineAsset.rayTracingShader.SetInt(Shader.PropertyToID("g_FrameIndex"), additionalData.frameIndex);
             renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_EnvTex"), renderPipelineAsset.envTexture);
+            renderPipelineAsset.rayTracingShader.SetMatrix(Shader.PropertyToID("g_PreviousViewProjection"), additionalData.previousViewProjection);
 
             Light dirLight = Object.FindObjectOfType<Light>();
             if(dirLight && dirLight.type==LightType.Directional)
@@ -206,7 +244,8 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             }
 
             // Output
-            renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_Radiance"), rayTracingOutput);       
+            renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_Radiance"), rayTracingOutput);
+            renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_RadianceHistory"), additionalData.colorHistory);
 
             commandBuffer.DispatchRays(renderPipelineAsset.rayTracingShader, "MainRayGenShader", (uint)camera.pixelWidth, (uint)camera.pixelHeight, 1, camera);
 
@@ -219,7 +258,41 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             context.ExecuteCommandBuffer(commandBuffer);
             context.Submit();
             
+            if (renderPipelineAsset.debugOutput)
+            {
+                // Debug RenderTextures
+                const uint rtDebugCount = 3;
+                RenderTexture[] renderTextures = new RenderTexture[rtDebugCount];
+                renderTextures[0] = gBufferWorldNormals;
+                renderTextures[1] = gBufferIntersectionT;
+                renderTextures[2] = gBufferMotionVectors;
+
+                int downScaleFactor = 4;
+
+                GL.PushMatrix();
+                GL.LoadPixelMatrix(0, camera.pixelWidth, camera.pixelHeight, 0);
+
+                int left = 0;
+                int top = 0;
+                for (int i = 0; i < rtDebugCount; i++)
+                {
+                    Graphics.DrawTexture(new Rect(left, top, renderTextures[i].width / downScaleFactor, renderTextures[i].height / downScaleFactor), renderTextures[i]);
+
+                    if (i % downScaleFactor == (downScaleFactor - 1))
+                    {
+                        left = 0;
+                        top += camera.pixelHeight / downScaleFactor;
+                    }
+                    else
+                        left += camera.pixelWidth / downScaleFactor;
+                }
+
+                GL.PopMatrix();
+            }
+
             ReleaseResources();
+            
+            additionalData.UpdateCameraDataPostRender(camera);
         }
         commandBuffer.Release();
     }

@@ -1,3 +1,5 @@
+//#define ENABLE_TEMPORAL_ACCUMULATION
+//#define ENABLE_CAMERA_MOTION_VECTORS
 
 #include "UnityShaderVariables.cginc"
 #include "GlobalResources.hlsl"
@@ -16,10 +18,11 @@ float4                          g_DirectionalLight;
 float4                          g_DirectionalLightColor;
 int                             g_UseDirectionalLight;
 int                             g_DirectionalLightShadows;
-
+float4x4                        g_PreviousViewProjection;
 
 // Output
 RWTexture2D<float4>             g_Radiance;
+RWTexture2D<float4>             g_RadianceHistory;
 
 [shader("raygeneration")]
 void MainRayGenShader()
@@ -36,10 +39,9 @@ void MainRayGenShader()
     float2 ndcCoords = frameCoord  / float2(launchDim.x - 1, launchDim.y - 1);
         
     ndcCoords = ndcCoords * 2 - float2(1, 1);
-    ndcCoords = ndcCoords * g_Zoom;
 
     // Get a ray in view space.
-    float3 viewDirection = normalize(float3(ndcCoords.x * g_AspectRatio, ndcCoords.y, 1));
+    float3 viewDirection = normalize(float3(ndcCoords.x * g_AspectRatio * g_Zoom, ndcCoords.y * g_Zoom, 1));
 
     // Rotate the ray from view space to world space.
     float3 rayDirection = mul((float3x3)unity_CameraToWorld, viewDirection);
@@ -69,7 +71,8 @@ void MainRayGenShader()
 
     float3 radiance = float3(0, 0, 0);
     float3 throughput = float3(1, 1, 1);
-        
+    float2 motionVector = float2(0, 0);
+
     do
     {
         TraceRay(g_AccelStruct, 0, 0xFF, 0, 1, missShaderIndex, ray, payload);
@@ -78,6 +81,18 @@ void MainRayGenShader()
         radiance += payload.emission * throughput;
             
         throughput *= payload.albedo / max(0.001, payload.k);
+
+#ifdef ENABLE_CAMERA_MOTION_VECTORS
+        // TODO: this is not 100% correct yet, static camera does not give 0 vectors!
+        if (payload.bounceIndexOpaque == 1)
+        {
+            float4 projCoords = mul(g_PreviousViewProjection, float4(payload.lastWorldPosition, 1.0));
+            projCoords.xyz = projCoords.xyz / projCoords.w; 
+            motionVector = ndcCoords - projCoords.xy;
+
+            motionVector *= (launchDim.xy / 2);
+        }
+#endif
             
         if(g_UseDirectionalLight > 0)
         {
@@ -128,7 +143,23 @@ void MainRayGenShader()
     }
     while ((payload.bounceIndexOpaque <= g_BounceCountOpaque) && (payload.bounceIndexTransparent <= g_BounceCountTransparent) && (++safeNet < 1000));  
 
-    g_Radiance[launchIndex] = float4(radiance, 1);
+
+#ifdef ENABLE_TEMPORAL_ACCUMULATION
+    float alpha = 0.125;
+
+    float2 projCoord = launchIndex + motionVector;
+    if (projCoord.x < 0 || projCoord.y < 0 || projCoord.x > launchDim.x || projCoord.y > launchDim.y)
+    {
+        alpha = 0;
+    }
+    float3 prevRadiance = g_RadianceHistory.Load(launchIndex + motionVector).xyz;
+
+    float3 result = lerp(prevRadiance, radiance, g_FrameIndex > 0 ? alpha : 1.0);
+    g_Radiance[launchIndex] = float4(result, 1);
+    g_RadianceHistory[launchIndex] = float4(result, 1);
+#else
+   g_Radiance[launchIndex] = float4(radiance, 1);
+#endif
 }
 
 [shader("miss")]
