@@ -161,7 +161,8 @@ Shader "PathTracing/StandardGlass"
 
                 uint2 launchIndex = uint2(DispatchRaysIndex().x, DispatchRaysDimensions().y - DispatchRaysIndex().y - 1);
 #ifdef USE_BLUENOISE_SAMPLING
-                float doRefraction = (GetBNDSequenceSample(launchIndex, 0, NB_RAND_BOUNCE * (payload.bounceIndexOpaque + payload.bounceIndexTransparent) + 2) > fresnelFactor) ? 1 : 0;
+                uint bounceNum = payload.bounceIndexOpaque + payload.bounceIndexTransparent;
+                float doRefraction = (GetBNDSequenceSample(launchIndex, 0, NB_RAND_BOUNCE * bounceNum + 2) > fresnelFactor) ? 1 : 0;
 #else
                 float doRefraction = (RandomFloat01(payload.rngState) > fresnelFactor) ? 1 : 0;
 #endif

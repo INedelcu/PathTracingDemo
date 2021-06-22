@@ -8,7 +8,7 @@
 #include "BluenoiseSampling.hlsl"
 #define USE_BLUENOISE_SAMPLING
 
-#define NB_RAND_BOUNCE 3
+#define NB_RAND_BOUNCE 4
 
 uint WangHash(inout uint seed)
 {
