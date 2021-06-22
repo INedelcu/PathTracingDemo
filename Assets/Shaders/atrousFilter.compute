@@ -17,10 +17,11 @@ float radianceSigma;
 float normalSigma;
 float depthSigma;
 int coordOffset;
-bool FIRST_PASS;
-bool LAST_PASS;
+int FIRST_PASS;
+int LAST_PASS;
 int width;
 int height;
+int normalsStopping;
 
 #if !defined(BLOCK_SIZE)
 #define BLOCK_SIZE 8
@@ -135,7 +136,8 @@ static inline float dW(float x1, float x2, float sigma)
 // Normals similarity function
 static inline float nW(float3 x1, float3 x2, float sigma)
 {
-   return 1.0f;
+	if (normalsStopping == 0)
+		return 1.0f;
    
    x1 = normalize(x1 + float3(0.01f, 0.01f, 0.01f));
    x2 = normalize(x2 + float3(0.01f, 0.01f, 0.01f));
@@ -190,7 +192,7 @@ void ATrousKernel(
    gradDpt.y = dFdY.w;
 
    float colVar;// color variance value
-   if (FIRST_PASS)
+   if (FIRST_PASS == 1)
       colVar = length(float3(SampleGauss3x3F(local_id.xy, radiance, imageSize, coord).xyz));
    else
       colVar = previousVariance[coord];
@@ -250,7 +252,7 @@ void ATrousKernel(
 		   coeff *= multiplier > 0.0f ? multiplier : 0.0f;
 
 		   output.xyz += c * coeff;
-		   if (FIRST_PASS)
+		   if (FIRST_PASS == 1)
 			   vsum += length(c) * coeff * coeff;
 		   else
 			   vsum += previousVariance[offsetUV] * coeff * coeff;
@@ -262,7 +264,7 @@ void ATrousKernel(
    output.w   = srcAlpha;
    output.xyz = sum > float3(0.0f, 0.0f, 0.0f) ? output.xyz / sum : float3(0.0f, 0.0f, 0.0f);
 
-   if (LAST_PASS == false)
+   if (LAST_PASS == 0)
    {
       vsum /= sum * sum;
 

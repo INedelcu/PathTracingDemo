@@ -6,6 +6,7 @@ using UnityEngine.Rendering;
 [CreateAssetMenu(menuName = "Rendering/RaytracingRenderPipelineAsset")]
 public class RaytracingRenderPipelineAsset : RenderPipelineAsset
 {
+    [Header("Pathtracing Settings")]
     [Range(1, 100)]
     public int bounceCountOpaque = 5;
     
@@ -17,17 +18,20 @@ public class RaytracingRenderPipelineAsset : RenderPipelineAsset
     public RayTracingShader rayTracingShader = null;
     public RayTracingShader rayTracingShaderGBuffer = null;    
     public bool EnableTemporal = true;
+    [Header("A-Trous Settings")]
     public bool EnableATrous = false;
     public ComputeShader aTrousShader = null;
     [Range(0, 5)]
     public int ATrousIterations = 5;
     [Range(0, 3)]
     public float aTrousRadianceSigma = 1.0f;
-    [Range(0.01f, 3)]
+    [Range(0.001f, 3)]
     public float aTrousNormalSigma = 0.1f;
     [Range(0, 3)]
     public float aTrousDepthSigma = 0.1f;
-    
+    public bool NormalsStopping = false;
+
+    [Header("Environment Settings")]
     // replace with environment from Lighting window.
     public Cubemap envTexture = null;
 
