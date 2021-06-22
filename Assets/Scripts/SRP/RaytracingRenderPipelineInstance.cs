@@ -16,38 +16,10 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
         {
             RayTracingAccelerationStructure.RASSettings settings = new RayTracingAccelerationStructure.RASSettings();
             settings.rayTracingModeMask = RayTracingAccelerationStructure.RayTracingModeMask.Everything;
+            settings.managementMode = RayTracingAccelerationStructure.ManagementMode.Automatic;
             settings.layerMask = 255;
 
-            bool useInstancing = !renderPipelineAsset.instances.Equals(new Vector2Int(1, 1));
-            if (useInstancing)
-                settings.managementMode = RayTracingAccelerationStructure.ManagementMode.Manual;
-            else
-                settings.managementMode = RayTracingAccelerationStructure.ManagementMode.Automatic;
-
             rayTracingAccelerationStructure = new RayTracingAccelerationStructure(settings);
-
-            if (useInstancing)
-            {
-                // TODO: instancing will not work properly when changing scenes! For now if instancing is active, we have to close the editor and open it again when changing scenes. 
-                var rendererArray = UnityEngine.GameObject.FindObjectsOfType<MeshRenderer>();
-
-                for (var i = 0; i < rendererArray.Length; i++)
-                {
-                    for (var j = 0; j < renderPipelineAsset.instances.x; j++)
-                    {
-                        for (var k = 0; k < renderPipelineAsset.instances.y; k++)
-                        {
-                            var instance = Object.Instantiate(rendererArray[i]);
-                            instance.hideFlags = HideFlags.HideAndDontSave;
-                            instance.gameObject.hideFlags = HideFlags.HideAndDontSave;
-                            instance.gameObject.transform.position = rendererArray[i].transform.position + new Vector3(j * renderPipelineAsset.instanceSpacing.x, 0, k * renderPipelineAsset.instanceSpacing.y);
-                            // Note: this will probably not work on every scene.
-                            instance.gameObject.transform.localScale = rendererArray[i].transform.lossyScale;
-                            rayTracingAccelerationStructure.AddInstance(instance);
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -190,7 +162,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             context.Submit();
             return;
         }
-        
+
         commandBuffer.BuildRayTracingAccelerationStructure(rayTracingAccelerationStructure);
         
         commandBuffer.SetGlobalInteger(Shader.PropertyToID("g_BounceCountOpaque"), renderPipelineAsset.bounceCountOpaque);
@@ -266,8 +238,9 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             renderPipelineAsset.rayTracingShader.SetTexture(Shader.PropertyToID("g_Radiance"), rayTracingOutput);
 
             commandBuffer.DispatchRays(renderPipelineAsset.rayTracingShader, "MainRayGenShader", (uint)camera.pixelWidth, (uint)camera.pixelHeight, 1, camera);
-           
-            // Plug in denoiser here.
+
+            // TODO plug in the radiance variance.
+            AtrousFilter(rayTracingOutput, gBufferWorldNormals, gBufferIntersectionT, rayTracingOutput);
             
             commandBuffer.Blit(rayTracingOutput, camera.activeTexture);
 
@@ -310,5 +283,10 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             ReleaseResources();
         }
         commandBuffer.Release();
+    }
+    
+    void AtrousFilter(RenderTexture radiance, RenderTexture normals, RenderTexture depth, RenderTexture filteredRadiance)
+    {
+    
     }
 }
