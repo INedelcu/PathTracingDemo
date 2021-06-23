@@ -47,7 +47,13 @@ void MainRayGenShader()
     float3 rayDirection = mul((float3x3)unity_CameraToWorld, viewDirection);
 
     float3 radiance = float3(0, 0, 0);
-    float2 motionVector = float2(0, 0);
+
+    // By default puth the motion vector to somthing huge that points out of the screen (and will be rejected).
+    // This handles properly skybox pixels, where we don;t want the motion vector 0.
+    float2 motionVector = float2(500000, 500000);
+    if (g_EnableMotionVectors == 0)
+        motionVector = 0;
+
     uint rngState = 0;
 
     for(uint sampleCount = 0; sampleCount < g_SampleCount; sampleCount++)
