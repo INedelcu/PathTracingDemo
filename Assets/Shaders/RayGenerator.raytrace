@@ -20,7 +20,7 @@ int                             g_DirectionalLightShadows;
 float4x4                        g_PreviousViewProjection;
 int                             g_EnableAccumulation;
 int                             g_EnableMotionVectors;
-float                           g_Alpha;    // for accumulation
+float4                          g_Alpha;    // for accumulation
 Texture2D<float4>               g_GBufferDepth;
 
 // Output
@@ -171,13 +171,14 @@ void MainRayGenShader()
 
     if (g_EnableAccumulation == 1)
     {
-        float alpha = g_Alpha;
+        float alpha = g_Alpha.x;
         float2 projCoord = frameCoord - 0.5 * motionVector;
-        if (projCoord.x < 0 || projCoord.y < 0 || projCoord.x > launchDim.x || projCoord.y > launchDim.y || g_FrameIndex == 0)
-            alpha = 1.0;
 
         // Adaptively adjust alpha based on motion
-        //alpha = min(1.0, alpha + 0.3 * length(motionVector));
+        alpha = min(1.0, alpha + g_Alpha.y * length(motionVector));
+
+        if (projCoord.x < 0 || projCoord.y < 0 || projCoord.x > launchDim.x || projCoord.y > launchDim.y || g_FrameIndex == 0)
+            alpha = 1.0;
 
         float currentDepth = g_GBufferDepth[frameCoord].x;
         
