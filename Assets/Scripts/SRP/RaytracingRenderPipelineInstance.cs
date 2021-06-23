@@ -123,6 +123,8 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             commandBuffer.SetRayTracingIntParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_EnableAccumulation"), renderPipelineAsset.enableAccumulation ? 1: 0);
             commandBuffer.SetRayTracingIntParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_EnableMotionVectors"), renderPipelineAsset.useMotionVectors ? 1 : 0);
             commandBuffer.SetRayTracingFloatParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_Alpha"), renderPipelineAsset.alpha);
+            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_GBufferDepth"), additionalData.gBufferIntersectionT);
+            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_GBufferDepthHistory"), additionalData.depthHistory);
 
             Light dirLight = Object.FindObjectOfType<Light>();
             if(dirLight && dirLight.type==LightType.Directional)

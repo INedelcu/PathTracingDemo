@@ -21,10 +21,12 @@ float4x4                        g_PreviousViewProjection;
 int                             g_EnableAccumulation;
 int                             g_EnableMotionVectors;
 float                           g_Alpha;    // for accumulation
+Texture2D<float4>               g_GBufferDepth;
 
 // Output
 RWTexture2D<float4>             g_Radiance;
 RWTexture2D<float4>             g_RadianceHistory;
+RWTexture2D<float>              g_GBufferDepthHistory;
 
 [shader("raygeneration")]
 void MainRayGenShader()
@@ -164,11 +166,16 @@ void MainRayGenShader()
     if (g_EnableAccumulation == 1)
     {
         float alpha = g_Alpha;
-        float2 projCoord = frameCoord - motionVector;
+        float2 projCoord = frameCoord - 0.5 * motionVector;
         if (projCoord.x < 0 || projCoord.y < 0 || projCoord.x > launchDim.x || projCoord.y > launchDim.y || g_FrameIndex == 0)
             alpha = 1.0;
 
-        float3 prevRadiance = SampleColorFromHistory(g_RadianceHistory, projCoord, launchDim).xyz;
+        // Adaptively adjust alpha based on motion
+        //alpha = min(1.0, alpha + 0.3 * length(motionVector));
+
+        float currentDepth = g_GBufferDepth[frameCoord].x;
+        
+        float3 prevRadiance = SampleColorFromHistory(g_RadianceHistory, g_GBufferDepthHistory, currentDepth, projCoord, launchDim).xyz;
 
         float3 result = lerp(prevRadiance, radiance / g_SampleCount, alpha);
 
@@ -178,6 +185,7 @@ void MainRayGenShader()
 
         g_Radiance[launchIndex] = float4(result, 1);
         g_RadianceHistory[launchIndex] = float4(result, 1);
+        g_GBufferDepthHistory[launchIndex] = currentDepth;
     }
     else
     {

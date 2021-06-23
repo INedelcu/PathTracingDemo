@@ -138,12 +138,14 @@ float FresnelReflectAmountTransparent(float n1, float n2, float3 incident, float
     return r0 + (1.0 - r0)*xx*xx*x;
 }
 
-float4 SampleColorFromHistory(RWTexture2D<float4> color, float2 coords, int2 texSize)
+#define TEX_FILTER 1
+
+float4 SampleColorFromHistory(RWTexture2D<float4> colorHistory, RWTexture2D<float> depthHistory, float currentDepth, float2 coords, int2 texSize)
 {
-#if 0
+#if TEX_FILTER == 0
     // point sampling
-    return color.Load(coords);
-#else
+    return colorHistory.Load(coords);
+#elif TEX_FILTER == 1
     // bilinear filter
     float2 tc1 = floor(coords + 0.5) - 0.5;
     float2 tc2 = tc1 + float2(1, 0);
@@ -152,23 +154,16 @@ float4 SampleColorFromHistory(RWTexture2D<float4> color, float2 coords, int2 tex
 
     float2 w = coords - tc1;
 
-    tc1 = min(tc1, texSize - 1);
-    tc2 = min(tc2, texSize - 1);
-    tc3 = min(tc3, texSize - 1);
-    tc4 = min(tc4, texSize - 1);
-    tc1 = max(tc1, 0);
-    tc2 = max(tc2, 0);
-    tc3 = max(tc3, 0);
-    tc4 = max(tc4, 0);
-
-    float4 s1 = color.Load(tc1);
-    float4 s2 = color.Load(tc2);
-    float4 s3 = color.Load(tc3);
-    float4 s4 = color.Load(tc4);
+    float4 s1 = colorHistory.Load(tc1);
+    float4 s2 = colorHistory.Load(tc2);
+    float4 s3 = colorHistory.Load(tc3);
+    float4 s4 = colorHistory.Load(tc4);
 
     float4 c1 = lerp(s1, s2, w.x);
     float4 c2 = lerp(s3, s4, w.x);
     return lerp(c1, c2, w.y);
+#else
+    // WIP depth based rejection
 
 #endif
 }
