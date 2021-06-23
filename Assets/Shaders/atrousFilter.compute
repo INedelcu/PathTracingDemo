@@ -39,7 +39,7 @@ groupshared	float4 window[(BLOCK_SIZE + 2)*(BLOCK_SIZE + 2)];
 
 // ----------------------------------------------------------------------------------------------------
 
-void FILL_LOCAL_BUFFER_RADIANCE(int2 local_id, Texture2D<float4> radiance, int2 srcBufferSize, int2 coord, int halfWindow, inout int2 localStart)
+void FILL_LOCAL_BUFFER_RADIANCE(uint2 local_id, Texture2D<float4> radiance, int2 srcBufferSize, int2 coord, int halfWindow, inout int2 localStart)
 {
       int localX = local_id.x; 
       int localY = local_id.y; 
@@ -51,19 +51,20 @@ void FILL_LOCAL_BUFFER_RADIANCE(int2 local_id, Texture2D<float4> radiance, int2 
          beg = (localX + localY*BLOCK_SIZE)*block; 
          end = beg + block; 
          end = clamp(end, 0, windowSize); 
-      } \
-      localStart = (int2)((coord.x & (~(BLOCK_SIZE - 1))) - halfWindow, (coord.y & (~(BLOCK_SIZE - 1))) - halfWindow); 
+      }
+	 
+      localStart = int2((coord.x & (~(BLOCK_SIZE - 1))) - halfWindow, (coord.y & (~(BLOCK_SIZE - 1))) - halfWindow);
       localStart = clamp(localStart, (int2)0, srcBufferSize - (int2)1); 
       for (int i = beg; i < end; ++i) 
       { 
-         int2 xy = (int2)(localStart.x + (i % (BLOCK_SIZE + halfWindow*2)), localStart.y + (i / (BLOCK_SIZE + halfWindow*2))); 
+         int2 xy = int2(localStart.x + (i % (BLOCK_SIZE + halfWindow*2)), localStart.y + (i / (BLOCK_SIZE + halfWindow*2))); 
          xy = clamp(xy, 0, srcBufferSize - (int2)1); 
          window[i] = radiance[xy]; 
       } 
       GroupMemoryBarrierWithGroupSync(); 
 }
 
-void FILL_LOCAL_BUFFER_NORMALS_DEPTH(int2 local_id, Texture2D<float4> normals, Texture2D<float> depths, int2 srcBufferSize, int2 coord, int halfWindow, inout int2 localStart)
+void FILL_LOCAL_BUFFER_NORMALS_DEPTH(uint2 local_id, Texture2D<float4> normals, Texture2D<float> depths, int2 srcBufferSize, int2 coord, int halfWindow, inout int2 localStart)
 {
    int localX = local_id.x; 
    int localY = local_id.y; 
@@ -76,11 +77,11 @@ void FILL_LOCAL_BUFFER_NORMALS_DEPTH(int2 local_id, Texture2D<float4> normals, T
       end = beg + block; 
       end = clamp(end, 0, windowSize); 
    }
-   localStart = (int2)((coord.x & (~(BLOCK_SIZE - 1))) - halfWindow, (coord.y & (~(BLOCK_SIZE - 1))) - halfWindow); 
+   localStart = int2((coord.x & (~(BLOCK_SIZE - 1))) - halfWindow, (coord.y & (~(BLOCK_SIZE - 1))) - halfWindow); 
    localStart = clamp(localStart, (int2)0, srcBufferSize - (int2)1); 
    for (int i = beg; i < end; ++i) 
    { 
-      int2 xy = (int2)(localStart.x + (i % (BLOCK_SIZE + halfWindow*2)), localStart.y + (i / (BLOCK_SIZE + halfWindow*2))); 
+      int2 xy = int2(localStart.x + (i % (BLOCK_SIZE + halfWindow*2)), localStart.y + (i / (BLOCK_SIZE + halfWindow*2))); 
       xy = clamp(xy, 0, srcBufferSize - (int2)1); 
       window[i].xyz = normals[xy].xyz;
       window[i].w = depths[xy];
@@ -111,7 +112,6 @@ do \
         - buffer[(right - localStart.x) + (BLOCK_SIZE + halfWindow*2)*(bottom - localStart.y)]); \
 } \
 while(0);
-
 
 // ----------------------------------------------------------------------------------------------------
 // Similarity function
@@ -151,7 +151,7 @@ static inline float nW(float3 x1, float3 x2, float sigma)
 }
 
 // ----------------------------------------------------------------------------------------------------
-static inline float4 SampleGauss3x3F(int2 local_id, Texture2D<float4> radiance, int2 buffer_size, int2 coord)
+static inline float4 SampleGauss3x3F(uint2 local_id, Texture2D<float4> radiance, uint2 buffer_size, uint2 coord)
 {
    int2 tl = clamp(coord - (int2)1, (int2)0, buffer_size - (int2)1);
    int2 br = clamp(coord + (int2)1, (int2)0, buffer_size - (int2)1);
@@ -171,8 +171,8 @@ static inline float4 SampleGauss3x3F(int2 local_id, Texture2D<float4> radiance, 
       + window[(tl.x - localStart.x) + (BLOCK_SIZE + 2)*(coord.y - localStart.y)]
       + window[(coord.x - localStart.x) + (BLOCK_SIZE + 2)*(br.y - localStart.y)] );
 
-   bluredVal += 0.195346f * window[(coord.x - localStart.x) + (BLOCK_SIZE + 2)*(coord.y - localStart.y)];
-   return bluredVal;
+	bluredVal += 0.195346f * window[(coord.x - localStart.x) + (BLOCK_SIZE + 2)*(coord.y - localStart.y)];
+	return bluredVal;
 }
 
 [numthreads(8,8,1)]
@@ -180,7 +180,7 @@ void ATrousKernel(
    uint3 global_id : SV_DispatchThreadID,
    uint3 local_id : SV_GroupThreadID)
 {
-   int2 coord = global_id.xy;
+   int2 coord = (int2)(global_id.xy);
 
    float2 gradDpt = 0.0f;
  
