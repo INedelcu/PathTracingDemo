@@ -63,6 +63,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
         
         commandBuffer.SetGlobalInteger(Shader.PropertyToID("g_BounceCountOpaque"), renderPipelineAsset.bounceCountOpaque);
         commandBuffer.SetGlobalInteger(Shader.PropertyToID("g_BounceCountTransparent"), renderPipelineAsset.bounceCountTransparent);
+        commandBuffer.SetGlobalInteger(Shader.PropertyToID("g_SampleCount"), renderPipelineAsset.sampleCount);
 
         // Iterate over all Cameras
         foreach (Camera camera in cameras)
@@ -119,6 +120,9 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             commandBuffer.SetRayTracingIntParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_FrameIndex"), additionalData.frameIndex);
             commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_EnvTex"), renderPipelineAsset.envTexture);
             commandBuffer.SetRayTracingMatrixParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_PreviousViewProjection"), additionalData.previousViewProjection);
+            commandBuffer.SetRayTracingIntParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_EnableAccumulation"), renderPipelineAsset.enableAccumulation ? 1: 0);
+            commandBuffer.SetRayTracingIntParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_EnableMotionVectors"), renderPipelineAsset.useMotionVectors ? 1 : 0);
+            commandBuffer.SetRayTracingFloatParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_Alpha"), renderPipelineAsset.alpha);
 
             Light dirLight = Object.FindObjectOfType<Light>();
             if(dirLight && dirLight.type==LightType.Directional)

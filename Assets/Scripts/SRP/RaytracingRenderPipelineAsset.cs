@@ -13,6 +13,9 @@ public class RaytracingRenderPipelineAsset : RenderPipelineAsset
     [Range(1, 100)]
     public int bounceCountTransparent = 8;
 
+    [Range(1, 256)]
+    public int sampleCount = 1;
+
     public bool debugOutput = false;
 
     public RayTracingShader rayTracingShader = null;
@@ -31,6 +34,12 @@ public class RaytracingRenderPipelineAsset : RenderPipelineAsset
     public bool RadianceStopping = false;
     public bool NormalStopping = false;
     public bool DepthStopping = false;
+
+    [Header("Temporal Accumulation Settings")]
+    public bool enableAccumulation = true;
+    public bool useMotionVectors = false;
+    [Range(0f, 1f)]
+    public float alpha = 0.2f;
 
     [Header("Environment Settings")]
     // replace with environment from Lighting window.
