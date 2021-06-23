@@ -20,7 +20,7 @@ public class RaytracingRenderPipelineAsset : RenderPipelineAsset
     [Header("A-Trous Settings")]
     public bool EnableATrous = false;
     public ComputeShader aTrousShader = null;
-    [Range(1, 5)]
+    [Range(1, 10)]
     public int ATrousIterations = 5;
     [Range(0.001f, 10)]
     public float aTrousRadianceSigma = 1.0f;
