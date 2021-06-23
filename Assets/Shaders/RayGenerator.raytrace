@@ -20,6 +20,8 @@ float4                          g_DirectionalLightColor;
 int                             g_UseDirectionalLight;
 int                             g_DirectionalLightShadows;
 float4x4                        g_PreviousViewProjection;
+int                             g_EnableAccumulation;
+int                             g_EnableMotionVectors;
 
 // Output
 RWTexture2D<float4>             g_Radiance;
@@ -91,16 +93,13 @@ void MainRayGenShader()
             
         throughput *= payload.albedo;
 
-#ifdef ENABLE_CAMERA_MOTION_VECTORS
-        // TODO: this is not 100% correct yet, static camera does not give 0 vectors!
-        if (payload.bounceIndexOpaque + payload.bounceIndexTransparent == 1)
+        if (g_EnableMotionVectors == 1 && (payload.bounceIndexOpaque + payload.bounceIndexTransparent == 1))
         {
             float4 projCoords = mul(g_PreviousViewProjection, float4(payload.lastWorldPosition, 1.0));
             projCoords.xyz = projCoords.xyz / projCoords.w;
             projCoords.xy = (projCoords.xy * 0.5 + 0.5) * float2(launchDim.x - 1, launchDim.y - 1);
             motionVector = frameCoord - projCoords.xy;
         }
-#endif
             
         if(g_UseDirectionalLight > 0)
         {
@@ -158,21 +157,23 @@ void MainRayGenShader()
     }
     while ((payload.bounceIndexOpaque <= g_BounceCountOpaque) && (payload.bounceIndexTransparent <= g_BounceCountTransparent) && (++safeNet < 1000));  
 
+    if (g_EnableAccumulation == 1)
+    {
+        float alpha = 0.2;
+        float2 projCoord = frameCoord - motionVector;
+        if (projCoord.x < 0 || projCoord.y < 0 || projCoord.x > launchDim.x || projCoord.y > launchDim.y)
+            alpha = 1.0;
 
-#ifdef ENABLE_TEMPORAL_ACCUMULATION
-    float alpha = 0.2;
-    float2 projCoord = frameCoord - motionVector;
-    if (projCoord.x < 0 || projCoord.y < 0 || projCoord.x > launchDim.x || projCoord.y > launchDim.y)
-        alpha = 1.0;
+        float3 prevRadiance = g_RadianceHistory.Load(projCoord).xyz;
 
-    float3 prevRadiance = g_RadianceHistory.Load(projCoord).xyz;
-
-    float3 result = lerp(prevRadiance, radiance, g_FrameIndex > 0 ? alpha : 1.0);
-    g_Radiance[launchIndex] = float4(result, 1);
-    g_RadianceHistory[launchIndex] = float4(result, 1);
-#else
-   g_Radiance[launchIndex] = float4(radiance, 1);
-#endif
+        float3 result = lerp(prevRadiance, radiance, g_FrameIndex > 0 ? alpha : 1.0);
+        g_Radiance[launchIndex] = float4(result, 1);
+        g_RadianceHistory[launchIndex] = float4(result, 1);
+    }
+    else
+    {
+       g_Radiance[launchIndex] = float4(radiance, 1);
+    }
 
 #ifdef NAN_MARKER
     if (any(isnan(g_Radiance[launchIndex])))

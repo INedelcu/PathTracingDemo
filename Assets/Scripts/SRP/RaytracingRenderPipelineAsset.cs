@@ -32,6 +32,10 @@ public class RaytracingRenderPipelineAsset : RenderPipelineAsset
     public bool NormalStopping = false;
     public bool DepthStopping = false;
 
+    [Header("Temporal Accumulation Settings")]
+    public bool enableAccumulation = true;
+    public bool useMotionVectors = false;
+
     [Header("Environment Settings")]
     // replace with environment from Lighting window.
     public Cubemap envTexture = null;
