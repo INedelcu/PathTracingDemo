@@ -11,6 +11,8 @@
 
 #define NB_RAND_BOUNCE 4
 
+SamplerState s_linear_clamp_sampler;
+
 uint WangHash(inout uint seed)
 {
     seed = (seed ^ 61) ^ (seed >> 16);
@@ -141,30 +143,16 @@ float FresnelReflectAmountTransparent(float n1, float n2, float3 incident, float
 
 #define TEX_FILTER 1
 
-float4 SampleColorFromHistory(RWTexture2D<float4> colorHistory, RWTexture2D<float> depthHistory, float currentDepth, float2 coords, int2 texSize)
+float4 SampleColorFromHistory(Texture2D<float4> colorHistory, Texture2D<float> depthHistory, float currentDepth, float2 coords, int2 texSize, out float confidence)
 {
+    confidence = 1;
 #if TEX_FILTER == 0
     // point sampling
-    return colorHistory.Load(coords);
+    return colorHistory[coords];
 #elif TEX_FILTER == 1
     // bilinear filter
-    float2 tc1 = floor(coords + 0.5) - 0.5;
-    float2 tc2 = tc1 + float2(1, 0);
-    float2 tc3 = tc1 + float2(0, 1);
-    float2 tc4 = tc1 + float2(1, 1);
-
-    float2 w = coords - tc1;
-
-    float4 s1 = colorHistory.Load(tc1);
-    float4 s2 = colorHistory.Load(tc2);
-    float4 s3 = colorHistory.Load(tc3);
-    float4 s4 = colorHistory.Load(tc4);
-
-    float4 c1 = lerp(s1, s2, w.x);
-    float4 c2 = lerp(s3, s4, w.x);
-    return lerp(c1, c2, w.y);
+    return colorHistory.SampleLevel(s_linear_clamp_sampler, coords / texSize, 0);
 #else
     // WIP depth based rejection
-
 #endif
 }

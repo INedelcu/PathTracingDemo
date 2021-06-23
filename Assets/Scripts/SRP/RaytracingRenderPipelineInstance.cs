@@ -139,6 +139,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
                 Color lightColor = dirLight.color * dirLight.intensity;
                 commandBuffer.SetRayTracingVectorParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_DirectionalLight"), new Vector4(dirLight.transform.forward.x,dirLight.transform.forward.y,dirLight.transform.forward.z, 0.0f));
                 commandBuffer.SetRayTracingVectorParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_DirectionalLightColor"), new Vector4(lightColor.r, lightColor.g, lightColor.b, 0.0f));
+                commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_RadianceHistory"), additionalData.colorHistory);
             }
             else
             {
@@ -149,9 +150,11 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
             // Output
             commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_Radiance"), additionalData.rayTracingOutput);
-            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_RadianceHistory"), additionalData.colorHistory);
 
             commandBuffer.DispatchRays(renderPipelineAsset.rayTracingShader, "MainRayGenShader", (uint)camera.pixelWidth, (uint)camera.pixelHeight, 1, camera);
+
+            commandBuffer.CopyTexture(additionalData.rayTracingOutput, additionalData.colorHistory);
+            commandBuffer.CopyTexture(additionalData.gBufferIntersectionT, additionalData.depthHistory);
 
             AtrousFilter(
                 renderPipelineAsset, 
