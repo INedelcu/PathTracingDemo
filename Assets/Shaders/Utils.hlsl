@@ -75,8 +75,13 @@ void CreateOrthoNormalBasis(in float3 n, inout float3 tangent, inout float3 bita
 
 float3 RandomUnitVector(inout uint state, uint2 pixelCoord, uint sampleIndex, uint sampleDimension)
 {
+#ifdef USE_BLUENOISE_SAMPLING
+    float z = GetBNDSequenceSample(pixelCoord, sampleIndex, sampleDimension) * 2.0f - 1.0f;
+    float a = GetBNDSequenceSample(pixelCoord, sampleIndex, sampleDimension + 1) * K_TWO_PI;
+#else
     float z = RandomFloat01(state) * 2.0f - 1.0f;
     float a = RandomFloat01(state) * K_TWO_PI;
+#endif
 
     float r = sqrt(1.0f - z * z);
     float x = r * cos(a);
