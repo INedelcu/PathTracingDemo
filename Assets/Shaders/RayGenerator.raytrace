@@ -34,19 +34,6 @@ void MainRayGenShader()
 
     // Shoot rays through the center of a pixel.
     float2 frameCoord = launchIndex + float2(0.5, 0.5);
-
-    // Initial random number generator seed for this pixel. The rngState will change every time we draw a random number.
-#ifdef USE_BLUENOISE_SAMPLING
-    // Change sampling at each frame
-    uint rngState = g_FrameIndex % 256;
-    
-    // Fixed sampling
-    //uint rngState = 0;   
-#else
-    uint rngState = uint(uint(launchIndex.x) * uint(1973) + uint(launchIndex.y) * uint(9277) + uint(g_FrameIndex) * uint(26699)) | uint(1);   
-#endif
-    
-
     float2 ndcCoords = frameCoord  / float2(launchDim.x - 1, launchDim.y - 1);
         
     ndcCoords = ndcCoords * 2 - float2(1, 1);
@@ -57,104 +44,119 @@ void MainRayGenShader()
     // Rotate the ray from view space to world space.
     float3 rayDirection = mul((float3x3)unity_CameraToWorld, viewDirection);
 
-    uint missShaderIndex = 0;
-    
-    RayDesc ray;
-    ray.Origin      = _WorldSpaceCameraPos;
-    ray.Direction   = rayDirection;
-    ray.TMin        = 0;
-    ray.TMax        = K_T_MAX;
-              
-    RayPayload payload;
-    payload.albedo                  = float3(1, 1, 1);
-    payload.emission                = float3(0, 0, 0);
-    payload.rngState                = rngState;
-    payload.bounceIndexOpaque       = 0;
-    payload.bounceIndexTransparent  = 0;
-    payload.bounceRayOrigin         = float3(0, 0, 0);
-    payload.bounceRayDirection      = float3(0, 0, 0);
-    payload.lastWorldNormal         = float3(0, 0, 0);
-    payload.isShadowRay             = false;
-
-    // Safe net for when shaders have compilation errors and don't increase the bounce index, resulting in an infinite loop.
-    uint safeNet = 0;
-
     float3 radiance = float3(0, 0, 0);
-    float3 throughput = float3(1, 1, 1);
     float2 motionVector = float2(0, 0);
+    uint rngState = 0;
 
-    do
+    for(uint sampleCount = 0; sampleCount < g_SampleCount; sampleCount++)
     {
-        TraceRay(g_AccelStruct, 0, 0xFF, 0, 1, missShaderIndex, ray, payload);
+#ifdef USE_BLUENOISE_SAMPLING
+        // Change sampling at each frame
+        rngState = (g_FrameIndex + sampleCount) % 256;
+        
+        // Fixed sampling
+        //uint rngState = 0;   
+#else
+        // Initial random number generator seed for this pixel. The rngState will change every time we draw a random number.
+        rngState = uint(uint(launchIndex.x) * uint(1973) + uint(launchIndex.y) * uint(9277) + uint((g_FrameIndex + sampleCount)) * uint(26699)) | uint(1);   
+#endif
 
-        // Accumulate emission from hit object
-        radiance += payload.emission * throughput;
-            
-        throughput *= payload.albedo;
+        uint missShaderIndex = 0;
+        
+        RayDesc ray;
+        ray.Origin      = _WorldSpaceCameraPos;
+        ray.Direction   = rayDirection;
+        ray.TMin        = 0;
+        ray.TMax        = K_T_MAX;
+                  
+        RayPayload payload;
+        payload.albedo                  = float3(1, 1, 1);
+        payload.emission                = float3(0, 0, 0);
+        payload.rngState                = rngState;
+        payload.bounceIndexOpaque       = 0;
+        payload.bounceIndexTransparent  = 0;
+        payload.bounceRayOrigin         = float3(0, 0, 0);
+        payload.bounceRayDirection      = float3(0, 0, 0);
+        payload.lastWorldNormal         = float3(0, 0, 0);
+        payload.isShadowRay             = false;
 
-        if (g_EnableMotionVectors == 1 && (payload.bounceIndexOpaque + payload.bounceIndexTransparent == 1))
+        // Safe net for when shaders have compilation errors and don't increase the bounce index, resulting in an infinite loop.
+        uint safeNet = 0;
+
+        float3 throughput = float3(1, 1, 1);
+
+        do
         {
-            float4 projCoords = mul(g_PreviousViewProjection, float4(payload.lastWorldPosition, 1.0));
-            projCoords.xyz = projCoords.xyz / projCoords.w;
-            projCoords.xy = (projCoords.xy * 0.5 + 0.5) * float2(launchDim.x - 1, launchDim.y - 1);
-            motionVector = frameCoord - projCoords.xy;
-        }
-            
-        if(g_UseDirectionalLight > 0)
-        {
-            // Directionnal light sampling
-            RayDesc shadowRay;
-            shadowRay.Origin      = payload.bounceRayOrigin;
-            shadowRay.Direction   = -g_DirectionalLight.xyz;
-            shadowRay.TMin        = 0;
-            shadowRay.TMax        = K_T_MAX;
+            TraceRay(g_AccelStruct, 0, 0xFF, 0, 1, missShaderIndex, ray, payload);
 
-            RayPayload payLoadShadow;
-            payLoadShadow.bounceIndexOpaque       = 0;
-            payLoadShadow.emission                = float3(0,0,0);
-            payLoadShadow.isShadowRay             = true;
+            // Accumulate emission from hit object
+            radiance += payload.emission * throughput;
                 
-            if(g_DirectionalLightShadows > 0)
-            {
-                // Trace shadow ray
-                TraceRay(g_AccelStruct, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, 0xFF, 0, 1, missShaderIndex, shadowRay, payLoadShadow);
-            }
-            else
-            {
-                payLoadShadow.bounceIndexOpaque = -1;
-            }
+            throughput *= payload.albedo;
 
-            if(payLoadShadow.bounceIndexOpaque == -1)
+            uint bounceNum = payload.bounceIndexOpaque + payload.bounceIndexTransparent;
+            if (g_EnableMotionVectors == 1 && (bounceNum == 1) && sampleCount == 0)
             {
-                radiance += saturate(dot(-g_DirectionalLight.xyz,payload.lastWorldNormal)) * g_DirectionalLightColor.xyz * throughput;
+                float4 projCoords = mul(g_PreviousViewProjection, float4(payload.lastWorldPosition, 1.0));
+                projCoords.xyz = projCoords.xyz / projCoords.w;
+                projCoords.xy = (projCoords.xy * 0.5 + 0.5) * float2(launchDim.x - 1, launchDim.y - 1);
+                motionVector = frameCoord - projCoords.xy;
             }
-        }
+                
+            if(g_UseDirectionalLight > 0)
+            {
+                // Directionnal light sampling
+                RayDesc shadowRay;
+                shadowRay.Origin      = payload.bounceRayOrigin;
+                shadowRay.Direction   = -g_DirectionalLight.xyz;
+                shadowRay.TMin        = 0;
+                shadowRay.TMax        = K_T_MAX;
+
+                RayPayload payLoadShadow;
+                payLoadShadow.bounceIndexOpaque       = 0;
+                payLoadShadow.emission                = float3(0,0,0);
+                payLoadShadow.isShadowRay             = true;
+                    
+                if(g_DirectionalLightShadows > 0)
+                {
+                    // Trace shadow ray
+                    TraceRay(g_AccelStruct, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, 0xFF, 0, 1, missShaderIndex, shadowRay, payLoadShadow);
+                }
+                else
+                {
+                    payLoadShadow.bounceIndexOpaque = -1;
+                }
+
+                if(payLoadShadow.bounceIndexOpaque == -1)
+                {
+                    radiance += saturate(dot(-g_DirectionalLight.xyz,payload.lastWorldNormal)) * g_DirectionalLightColor.xyz * throughput;
+                }
+            }
 
 #define ENABLE_RUSSIAN_ROULETTE 1
 
 #if ENABLE_RUSSIAN_ROULETTE
-
-        float pathStopProbability = min(max(throughput.r, max(throughput.g, throughput.b)), 1.0);
+            float pathStopProbability = min(max(throughput.r, max(throughput.g, throughput.b)), 1.0);
 
 #ifdef USE_BLUENOISE_SAMPLING
-        uint bounceNum = payload.bounceIndexOpaque + payload.bounceIndexTransparent;
-        float randRR = GetBNDSequenceSample(launchIndex, payload.rngState, NB_RAND_BOUNCE * bounceNum + 3);
+            float randRR = GetBNDSequenceSample(launchIndex, payload.rngState, NB_RAND_BOUNCE * bounceNum + 3);
 #else
-        float randRR = RandomFloat01(payload.rngState);
+            float randRR = RandomFloat01(payload.rngState);
 #endif
 
-        // Dark colors have higher chance to terminate the path early.
-        if (pathStopProbability < randRR)
-            break;
+            // Dark colors have higher chance to terminate the path early.
+            if (pathStopProbability < randRR)
+                break;
 
-        throughput *= 1 / pathStopProbability;
+            throughput *= 1 / pathStopProbability;
 
 #endif // ENABLE_RUSSIAN_ROULETTE
 
-        ray.Origin      = payload.bounceRayOrigin;
-        ray.Direction   = payload.bounceRayDirection;
-    }
-    while ((payload.bounceIndexOpaque <= g_BounceCountOpaque) && (payload.bounceIndexTransparent <= g_BounceCountTransparent) && (++safeNet < 1000));  
+            ray.Origin      = payload.bounceRayOrigin;
+            ray.Direction   = payload.bounceRayDirection;
+        }
+        while ((payload.bounceIndexOpaque <= g_BounceCountOpaque) && (payload.bounceIndexTransparent <= g_BounceCountTransparent) && (++safeNet < 1000));
+    }  
 
     if (g_EnableAccumulation == 1)
     {
@@ -165,13 +167,13 @@ void MainRayGenShader()
 
         float3 prevRadiance = g_RadianceHistory.Load(projCoord).xyz;
 
-        float3 result = lerp(prevRadiance, radiance, g_FrameIndex > 0 ? alpha : 1.0);
+        float3 result = lerp(prevRadiance, radiance / g_SampleCount, g_FrameIndex > 0 ? alpha : 1.0);
         g_Radiance[launchIndex] = float4(result, 1);
         g_RadianceHistory[launchIndex] = float4(result, 1);
     }
     else
     {
-       g_Radiance[launchIndex] = float4(radiance, 1);
+       g_Radiance[launchIndex] = float4(radiance / g_SampleCount, 1);
     }
 
 #ifdef NAN_MARKER
