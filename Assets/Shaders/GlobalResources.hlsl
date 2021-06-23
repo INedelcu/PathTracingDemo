@@ -11,6 +11,8 @@ cbuffer GlobalParams : register(b0, space1)
 {
     uint g_BounceCountOpaque;
     uint g_BounceCountTransparent;
+    uint g_SampleCount;
 };
 
 #endif
+
