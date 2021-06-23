@@ -1,10 +1,7 @@
 #ifndef UNITY_BLUENOISE_SAMPLING_INCLUDED
 #define UNITY_BLUENOISE_SAMPLING_INCLUDED
 
-Texture2D<float>  _ScramblingTileXSPP;
-Texture2D<float>  _RankingTileXSPP;
-Texture2D<float2> _ScramblingTexture;
-Texture2D<float2> _OwenScrambledTexture;
+#include "GlobalResources.hlsl"
 
 float ScramblingValueFloat(uint2 pixelCoord)
 {

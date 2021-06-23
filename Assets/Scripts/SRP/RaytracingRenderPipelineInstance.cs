@@ -63,6 +63,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
         
         commandBuffer.SetGlobalInteger(Shader.PropertyToID("g_BounceCountOpaque"), renderPipelineAsset.bounceCountOpaque);
         commandBuffer.SetGlobalInteger(Shader.PropertyToID("g_BounceCountTransparent"), renderPipelineAsset.bounceCountTransparent);
+        commandBuffer.SetGlobalInteger(Shader.PropertyToID("g_SampleCount"), renderPipelineAsset.sampleCount);
 
         // Iterate over all Cameras
         foreach (Camera camera in cameras)
