@@ -118,7 +118,7 @@ Shader "PathTracing/StandardGlass"
             {
                 if (payload.bounceIndexTransparent == g_BounceCountTransparent)
                 {
-                    payload.bounceIndexTransparent = -1;
+                    payload.bounceIndexTransparent = INVALID_BOUNCE_INDEX;
                     return;
                 }
 

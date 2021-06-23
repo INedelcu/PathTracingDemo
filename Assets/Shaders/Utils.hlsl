@@ -4,6 +4,7 @@
 #define K_TWO_PI                6.283185307f
 #define K_T_MAX                 10000
 #define K_RAY_ORIGIN_PUSH_OFF   0.002
+#define INVALID_BOUNCE_INDEX    -100000
 
 #include "BluenoiseSampling.hlsl"
 #define USE_BLUENOISE_SAMPLING

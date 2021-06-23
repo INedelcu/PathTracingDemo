@@ -7,8 +7,6 @@
 
 #pragma max_recursion_depth 1
 
-#define INVALID_BOUNCE_INDEX -100000
-
 // Input
 float                           g_Zoom;
 float                           g_AspectRatio;
