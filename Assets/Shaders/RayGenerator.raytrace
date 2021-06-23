@@ -165,12 +165,17 @@ void MainRayGenShader()
     {
         float alpha = g_Alpha;
         float2 projCoord = frameCoord - motionVector;
-        if (projCoord.x < 0 || projCoord.y < 0 || projCoord.x > launchDim.x || projCoord.y > launchDim.y)
+        if (projCoord.x < 0 || projCoord.y < 0 || projCoord.x > launchDim.x || projCoord.y > launchDim.y || g_FrameIndex == 0)
             alpha = 1.0;
 
-        float3 prevRadiance = g_RadianceHistory.Load(projCoord).xyz;
+        float3 prevRadiance = SampleColorFromHistory(g_RadianceHistory, projCoord, launchDim).xyz;
 
-        float3 result = lerp(prevRadiance, radiance / g_SampleCount, g_FrameIndex > 0 ? alpha : 1.0);
+        float3 result = lerp(prevRadiance, radiance / g_SampleCount, alpha);
+
+        //stop NaNs
+        if (any(isnan(result)))
+            result = 0;
+
         g_Radiance[launchIndex] = float4(result, 1);
         g_RadianceHistory[launchIndex] = float4(result, 1);
     }
