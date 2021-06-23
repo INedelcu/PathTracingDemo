@@ -102,6 +102,9 @@ void MainRayGenShader()
                 projCoords.xy = (projCoords.xy * 0.5 + 0.5) * float2(launchDim.x - 1, launchDim.y - 1);
                 motionVector = frameCoord - projCoords.xy;
             }
+
+            if(payload.bounceIndexOpaque < 0)
+                break;
                 
             if(g_UseDirectionalLight > 0)
             {
