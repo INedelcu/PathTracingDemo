@@ -5,6 +5,9 @@ Shader "PathTracing/Standard"
         _Color("Color", Color) = (1, 1, 1, 1)
         _MainTex("Albedo", 2D) = "white" {}
 
+        _Cutoff("Alpha Cutoff", Range(0.0, 1.0)) = 0.5
+        [Toggle]_Cutout("Cutout Material", float) = 0
+
         _NormalMap("NormalMap", 2D) = "bump" {}
 
         [Toggle]_Emission("Emission", float) = 0
@@ -103,6 +106,7 @@ Shader "PathTracing/Standard"
             #pragma raytracing test
 
             #pragma shader_feature_raytracing _EMISSION
+            #pragma shader_feature_raytracing GEOM_TYPE_LEAF
 
             float4 _Color;
             float4 _SpecularColor;
@@ -124,6 +128,7 @@ Shader "PathTracing/Standard"
             float _Smoothness;
             float _Metallic;
             float _IOR;
+            float _Cutoff;
 
             float4 unity_WorldTransformParams;
             float4x4 unity_MatrixPreviousM;
@@ -162,15 +167,28 @@ Shader "PathTracing/Standard"
                 return v;
             }
 
+            [shader("anyhit")]
+            void AnyHitMain(inout RayPayload payload : SV_RayPayload, AttributeData attribs : SV_IntersectionAttributes)
+            {
+                uint3 triangleIndices = UnityRayTracingFetchTriangleIndices(PrimitiveIndex());
+
+                Vertex v0, v1, v2;
+                v0 = FetchVertex(triangleIndices.x);
+                v1 = FetchVertex(triangleIndices.y);
+                v2 = FetchVertex(triangleIndices.z);
+
+                float3 barycentricCoords = float3(1.0 - attribs.barycentrics.x - attribs.barycentrics.y, attribs.barycentrics.x, attribs.barycentrics.y);
+                Vertex v = InterpolateVertices(v0, v1, v2, barycentricCoords);
+
+                float alpha = _MainTex.SampleLevel(sampler__MainTex, _MainTex_ST.xy * v.uv + _MainTex_ST.zw, 0).w;
+
+                if (alpha < _Cutoff)
+                    IgnoreHit();
+            }
+
             [shader("closesthit")]
             void ClosestHitMain(inout RayPayload payload : SV_RayPayload, AttributeData attribs : SV_IntersectionAttributes)
             {
-                if (payload.bounceIndexOpaque == g_BounceCountOpaque)
-                {
-                    payload.bounceIndexOpaque = INVALID_BOUNCE_INDEX;
-                    return;
-                }
-
                 uint3 triangleIndices = UnityRayTracingFetchTriangleIndices(PrimitiveIndex());
 
                 Vertex v0, v1, v2;
@@ -231,9 +249,9 @@ Shader "PathTracing/Standard"
 
                 float3 albedo = _Color.xyz * _MainTex.SampleLevel(sampler__MainTex, _MainTex_ST.xy * v.uv + _MainTex_ST.zw, 0).xyz;
 
-                payload.albedo              = lerp(albedo, _SpecularColor.xyz, doSpecular);
+                payload.albedo              = payload.bounceIndexOpaque == 0 ? albedo : lerp(albedo, _SpecularColor.xyz, doSpecular);
                 payload.emission            = emission;                
-                payload.bounceIndexOpaque   = payload.bounceIndexOpaque + 1;
+                payload.bounceIndexOpaque   = (!payload.isShadowRay && payload.bounceIndexOpaque == g_BounceCountOpaque)? INVALID_BOUNCE_INDEX : payload.bounceIndexOpaque + 1;
                 payload.bounceRayOrigin     = worldPosition + K_RAY_ORIGIN_PUSH_OFF * worldFaceNormal;
                 payload.bounceRayDirection  = reflectedRayDir;
                 payload.lastWorldNormal     = worldNormal;
