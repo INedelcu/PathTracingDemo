@@ -115,7 +115,7 @@ Shader "PathTracing/Standard"
             float4 _MainTex_ST;
             SamplerState sampler__MainTex;
 
-            Texture2D<float3> _NormalMap;
+            Texture2D<float4> _NormalMap;
             float4 _NormalMap_ST;
             SamplerState sampler__NormalMap;
 
@@ -186,6 +186,24 @@ Shader "PathTracing/Standard"
                     IgnoreHit();
             }
 
+            // Unpack normal as DXT5nm (1, y, 1, x) or BC5 (x, y, 0, 1)
+            // Note neutral texture like "bump" is (0, 0, 1, 1) to work with both plain RGB normal and DXT5nm/BC5
+            float3 UnpackNormalmapRGorAG(float4 packednormal)
+            {
+                // This do the trick
+                packednormal.x *= packednormal.w;
+
+                float3 normal;
+                normal.xy = packednormal.xy * 2 - 1;
+                normal.z = sqrt(1 - saturate(dot(normal.xy, normal.xy)));
+                return normal;
+            }
+
+            float3 UnpackNormal(float4 packednormal)
+            {
+                return UnpackNormalmapRGorAG(packednormal);
+            }
+
             [shader("closesthit")]
             void ClosestHitMain(inout RayPayload payload : SV_RayPayload, AttributeData attribs : SV_IntersectionAttributes)
             {
@@ -212,7 +230,7 @@ Shader "PathTracing/Standard"
 
                 float3 worldTangent = normalize(mul(v.tangent.xyz, (float3x3)WorldToObject()));
                 float3x3 tangentToWorld = CreateTangentToWorld(worldNormal, worldTangent, sign(v.tangent.w), unity_WorldTransformParams.w);
-                float3 normalTS = _NormalMap.SampleLevel(sampler__NormalMap, _NormalMap_ST.xy * v.uv + _NormalMap_ST.zw, 0).xyz * 2 - 1;
+                float3 normalTS = UnpackNormal(_NormalMap.SampleLevel(sampler__NormalMap, _NormalMap_ST.xy * v.uv + _NormalMap_ST.zw, 0));
 
                 worldNormal = normalize(mul(normalTS, tangentToWorld));
 
