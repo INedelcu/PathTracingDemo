@@ -47,6 +47,8 @@ public class RaytracingRenderPipelineAsset : RenderPipelineAsset
     [Header("Environment Settings")]
     // replace with environment from Lighting window.
     public Cubemap envTexture = null;
+    public Texture2D envTexture2D = null;
+    public bool regenerateEnvSamplingPoints = false;
 
     // Unity calls this method before rendering the first frame.
     // If a setting on the Render Pipeline Asset changes, Unity destroys the current Render Pipeline Instance and calls this method again before rendering the next frame.

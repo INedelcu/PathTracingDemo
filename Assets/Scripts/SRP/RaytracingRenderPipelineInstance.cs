@@ -21,6 +21,14 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
             rayTracingAccelerationStructure = new RayTracingAccelerationStructure(settings);
         }
+
+        ditheredTextureSet = DitheredTextureSet8SPP();
+        if(asset.regenerateEnvSamplingPoints)
+        {
+            generateEnvSamplingPoints();
+            asset.regenerateEnvSamplingPoints = false;   
+        }
+
     }
 
     protected override void Dispose(bool disposing)
@@ -35,6 +43,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
     }     
 	private DitheredTextureSet ditheredTextureSet;    
     public RayTracingAccelerationStructure rayTracingAccelerationStructure = null;
+    public Texture2D envSamplingTexture;
     
     private void ReleaseResources()
     {
@@ -43,7 +52,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
     private void CreateResources(Camera camera)
     {
-        ditheredTextureSet = DitheredTextureSet8SPP();
+
     }
 
     protected override void Render (ScriptableRenderContext context, Camera[] cameras)
@@ -102,6 +111,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             commandBuffer.SetRayTracingFloatParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_AspectRatio"), camera.pixelWidth / (float)camera.pixelHeight);
             commandBuffer.SetRayTracingIntParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_FrameIndex"), additionalData.frameIndex);
             commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_EnvTex"), renderPipelineAsset.envTexture);
+            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_EnvTexSampling"), envSamplingTexture);
             commandBuffer.SetRayTracingMatrixParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_PreviousViewProjection"), additionalData.previousViewProjection);
             commandBuffer.SetRayTracingIntParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_EnableAccumulation"), renderPipelineAsset.enableAccumulation ? 1: 0);
             commandBuffer.SetRayTracingIntParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_EnableMotionVectors"), renderPipelineAsset.useMotionVectors ? 1 : 0);
@@ -306,5 +316,158 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
         cmd.SetGlobalTexture(Shader.PropertyToID("_RankingTileXSPP"), ditheredTextureSet.rankingTile);
         cmd.SetGlobalTexture(Shader.PropertyToID("_ScramblingTexture"), ditheredTextureSet.scramblingTex);
         cmd.SetGlobalTexture(Shader.PropertyToID("_OwenScrambledTexture"), ditheredTextureSet.owenScrambled256Tex);
+    }
+
+    float Luminance(Color c)
+    {
+        return 0.2126f*c.r + 0.7152f*c.g + 0.0722f*c.b;
+    }
+
+    void generateEnvSamplingPoints()
+    {
+
+        
+        envSamplingTexture = Resources.Load<Texture2D>("Textures/envSamplingTexture");
+
+        
+        // computeCDF2D
+        int width = renderPipelineAsset.envTexture2D.width;
+        int height = renderPipelineAsset.envTexture2D.height;
+        float[,] cdf_2d_envmap = new float[height, width];
+        float[] cdf_1d_envmap_rows = new float[height];
+        float[] sum_envmap_rows = new float[height];
+  
+  
+        // Compute CDF 2D
+        for (int iy = 0; iy < height; iy++)
+        {
+            float lum = Luminance( renderPipelineAsset.envTexture2D.GetPixel(0,iy) );
+            cdf_2d_envmap[iy,0] = lum;
+            sum_envmap_rows[iy] = 0.0f;
+
+            // cummulate all the columns in current row
+            for (int ix = 1; ix < width; ix++)
+            {
+                lum = Luminance( renderPipelineAsset.envTexture2D.GetPixel(ix,iy) );
+                cdf_2d_envmap[iy,ix] = cdf_2d_envmap[iy,ix-1] + lum;   
+            }
+
+            // Store unnormalized sum
+            sum_envmap_rows[iy] = cdf_2d_envmap[iy,width-1];
+
+            // normalize
+            for (uint ix = 0; ix < width; ix++)
+            {
+                cdf_2d_envmap[iy,ix] /= sum_envmap_rows[iy];
+            }
+        }
+
+        // Compute CDF 1D
+        cdf_1d_envmap_rows[0] = sum_envmap_rows[0];
+        for (uint iy = 1; iy < height; iy++)
+        {
+            cdf_1d_envmap_rows[iy] = cdf_1d_envmap_rows[iy-1] + sum_envmap_rows[iy];
+        }
+        // normalize
+        for (uint iy = 0; iy < height; iy++)
+        {
+            cdf_1d_envmap_rows[iy] /= cdf_1d_envmap_rows[height-1];
+            //Debug.Log("cdf 1d "+cdf_1d_envmap_rows[iy]);
+        }
+
+
+
+
+        
+
+        for(int j=0;j<envSamplingTexture.height;j++)
+        {
+            for(int i=0;i<envSamplingTexture.width;i++)
+            {
+                // TODO generate directions here
+                Color color = new Color();
+                color.r = cdf_2d_envmap[i,j] * 255;
+                
+                int pixelNum = j*envSamplingTexture.width + i;
+
+                float rowRand = Random.value;
+                float columnRand = Random.value;
+
+                int rowSelected = 0;
+                int columnSelected = 0;
+
+                // TODO dichotomy
+                for(int rowNum=0; rowNum<height; rowNum++)
+                {
+                    if(cdf_1d_envmap_rows[rowNum] > rowRand)
+                    {
+                        rowSelected = rowNum;
+                        break;
+                    }
+                }
+
+                // TODO dichotomy
+                for(int columnNum=0; columnNum<width; columnNum++)
+                {
+                    if(cdf_2d_envmap[rowSelected, columnNum] > columnRand)
+                    {
+                        columnSelected = columnNum;
+                        break;
+                    }
+                }
+
+                //Debug.Log("rand "+rowRand+" rand "+columnRand+" row "+rowSelected+" column "+columnSelected);
+
+                //color = renderPipelineAsset.envTexture.GetPixel(0, i, j);
+                
+                float u = 0.0f;
+                float v = 0.0f;
+                              
+                //color = renderPipelineAsset.envTexture2D.GetPixel(columnSelected, rowSelected);
+
+                u = columnSelected;
+                u = u/width; 
+                v = rowSelected;
+                v = v / height;
+
+                //v= Random.value*0.5f + 0.5f;
+
+                // Store 2D coords
+                /*
+                color.r =  u;
+                color.g =  v;
+                */
+
+                //Store 3D coords
+                float phi   = -u*Mathf.PI + Mathf.PI/2.0f;
+                float theta = Mathf.PI * (1.0f-v);
+                color.r = (1.0f + (Mathf.Sin(theta) * Mathf.Sin(phi))) / 2.0f;
+                color.g = (1.0f + Mathf.Cos(theta) ) / 2.0f;
+                color.b = (1.0f + Mathf.Sin(theta) * Mathf.Cos(phi)) / 2.0f;
+                
+            //directionEnv = normalize(directionEnv);
+            
+            envSamplingTexture.SetPixel(i, j, color);
+
+            }
+        }
+        envSamplingTexture.Apply();
+
+        //Debug.Log(UnityEditor.AssetDatabase.GetAssetPath(envSamplingTexture));
+        /*
+
+         byte[] bytes = envSamplingTexture.EncodeToPNG();
+         var dirPath = Application.dataPath + "/Resources/Textures";
+         if (!System.IO.Directory.Exists(dirPath))
+         {
+             System.IO.Directory.CreateDirectory(dirPath);
+         }
+         System.IO.File.WriteAllBytes(dirPath + "/envSamplingTexture_" + Random.Range(0, 100000) + ".png", bytes);
+         Debug.Log(bytes.Length / 1024 + "Kb was saved as: " + dirPath);
+ #if UNITY_EDITOR
+         UnityEditor.AssetDatabase.Refresh();
+ #endif
+ */
+
     }
 }

@@ -14,6 +14,7 @@ float                           g_Zoom;
 float                           g_AspectRatio;
 uint                            g_FrameIndex;
 TextureCube<float4>             g_EnvTex;
+Texture2D<float4>               g_EnvTexSampling;
 SamplerState                    sampler_g_EnvTex;
 float4                          g_DirectionalLight;
 float4                          g_DirectionalLightColor;
@@ -141,6 +142,72 @@ void MainRayGenShader()
                 g_GBufferIntersectionT[launchIndex] = payload.intersectionT;
             }
                 
+
+#define ENVIRONMENT_SAMPLING
+#ifdef ENVIRONMENT_SAMPLING
+            float envRandom = GetBNDSequenceSample(launchIndex, payload.rngState, NB_RAND_BOUNCE * (bounceNum) + 3 ) * 128.0f*128.0f;
+            int envX = envRandom;
+            envX = envX %128;
+            int envY = envRandom; 
+            envY = envY / 128;
+
+            //envX = 0;
+            //envY = 0;
+            
+            /*
+            //Fetch directly
+            payload.emission                =  g_EnvTexSampling.Load( int3(128*envX, 128*envY,0));
+            radiance += payload.emission * throughput;
+            */
+
+            // Compute direction from 2d
+            /*
+            float3 directionEnv = g_EnvTexSampling.Load(int3(envX, envY, 0));
+            float u = directionEnv.x;
+            float v = directionEnv.y;
+
+            float phi   = -u*K_PI + K_PI/2.0f;
+            float theta = K_PI * (1.0f-v);
+
+            directionEnv.x = (sin(theta) * sin(phi));
+            directionEnv.y = (cos(theta));
+            directionEnv.z = (sin(theta) * cos(phi));
+
+            directionEnv = normalize(directionEnv);
+            */
+            
+            // Get 3d coords from texture
+            
+            float3 directionEnv = g_EnvTexSampling.Load(int3(envX, envY, 0));
+            directionEnv = directionEnv * float3(2.0f,2.0f,2.0f) - float3(1.0f,1.0f,1.0f);
+            
+
+            //payload.emission = float3(1,1,1);
+            payload.emission                = g_EnvTex.SampleLevel(sampler_g_EnvTex, directionEnv, 0).xyz;
+
+
+            RayDesc shadowRay;
+            shadowRay.Origin      = payload.bounceRayOrigin;
+            shadowRay.Direction   = directionEnv;
+            shadowRay.TMin        = 0;
+            shadowRay.TMax        = K_T_MAX;
+
+            RayPayload payLoadShadow;
+            payLoadShadow.bounceIndexOpaque       = 0;
+            payLoadShadow.emission                = float3(0,0,0);
+            payLoadShadow.isShadowRay             = true;
+            TraceRay(g_AccelStruct, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, 0xFF, 0, 1, missShaderIndex, shadowRay, payLoadShadow);
+
+
+
+            if(payLoadShadow.bounceIndexOpaque == INVALID_BOUNCE_INDEX)
+            {
+                radiance += payload.emission * throughput * saturate(dot(directionEnv,payload.lastWorldNormal));
+            }
+            
+            
+    #else // no ENVIRONMENT_SAMPLING use directionnal light instead
+            
             if(g_UseDirectionalLight > 0)
             {
                 // Directionnal light sampling
@@ -170,6 +237,7 @@ void MainRayGenShader()
                     radiance += saturate(dot(-g_DirectionalLight.xyz,payload.lastWorldNormal)) * g_DirectionalLightColor.xyz * throughput;
                 }
             }
+    #endif
 
             if(payload.bounceIndexOpaque < 0)
                break;
