@@ -124,9 +124,6 @@ void MainRayGenShader()
                 g_GBufferWorldNormals[launchIndex] = float4(payload.lastWorldNormal, 1);
                 g_GBufferIntersectionT[launchIndex] = payload.intersectionT;
             }
-
-            if(payload.bounceIndexOpaque < 0)
-                break;
                 
             if(g_UseDirectionalLight > 0)
             {
@@ -157,6 +154,9 @@ void MainRayGenShader()
                     radiance += saturate(dot(-g_DirectionalLight.xyz,payload.lastWorldNormal)) * g_DirectionalLightColor.xyz * throughput;
                 }
             }
+
+            if(payload.bounceIndexOpaque < 0)
+               break;
 
 #define ENABLE_RUSSIAN_ROULETTE 1
 

@@ -7,10 +7,10 @@ using UnityEngine.Rendering;
 public class RaytracingRenderPipelineAsset : RenderPipelineAsset
 {
     [Header("Pathtracing Settings")]
-    [Range(1, 100)]
+    [Range(0, 100)]
     public int bounceCountOpaque = 5;
     
-    [Range(1, 100)]
+    [Range(0, 100)]
     public int bounceCountTransparent = 8;
 
     [Range(1, 256)]

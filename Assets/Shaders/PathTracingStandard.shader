@@ -189,12 +189,6 @@ Shader "PathTracing/Standard"
             [shader("closesthit")]
             void ClosestHitMain(inout RayPayload payload : SV_RayPayload, AttributeData attribs : SV_IntersectionAttributes)
             {
-                if (payload.bounceIndexOpaque == g_BounceCountOpaque)
-                {
-                    payload.bounceIndexOpaque = INVALID_BOUNCE_INDEX;
-                    return;
-                }
-
                 uint3 triangleIndices = UnityRayTracingFetchTriangleIndices(PrimitiveIndex());
 
                 Vertex v0, v1, v2;
@@ -255,9 +249,9 @@ Shader "PathTracing/Standard"
 
                 float3 albedo = _Color.xyz * _MainTex.SampleLevel(sampler__MainTex, _MainTex_ST.xy * v.uv + _MainTex_ST.zw, 0).xyz;
 
-                payload.albedo              = lerp(albedo, _SpecularColor.xyz, doSpecular);
+                payload.albedo              = payload.bounceIndexOpaque == 0 ? albedo : lerp(albedo, _SpecularColor.xyz, doSpecular);
                 payload.emission            = emission;                
-                payload.bounceIndexOpaque   = payload.bounceIndexOpaque + 1;
+                payload.bounceIndexOpaque   = (!payload.isShadowRay && payload.bounceIndexOpaque == g_BounceCountOpaque)? INVALID_BOUNCE_INDEX : payload.bounceIndexOpaque + 1;
                 payload.bounceRayOrigin     = worldPosition + K_RAY_ORIGIN_PUSH_OFF * worldFaceNormal;
                 payload.bounceRayDirection  = reflectedRayDir;
                 payload.lastWorldNormal     = worldNormal;
