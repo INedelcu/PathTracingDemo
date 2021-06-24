@@ -122,7 +122,10 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             commandBuffer.SetRayTracingMatrixParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_PreviousViewProjection"), additionalData.previousViewProjection);
             commandBuffer.SetRayTracingIntParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_EnableAccumulation"), renderPipelineAsset.enableAccumulation ? 1: 0);
             commandBuffer.SetRayTracingIntParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_EnableMotionVectors"), renderPipelineAsset.useMotionVectors ? 1 : 0);
-            commandBuffer.SetRayTracingFloatParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_Alpha"), renderPipelineAsset.alpha);
+            commandBuffer.SetRayTracingVectorParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_Alpha"), new Vector4(renderPipelineAsset.alpha, renderPipelineAsset.speedAdaptation, 0, 1));
+            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_GBufferDepth"), additionalData.gBufferIntersectionT);
+            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_GBufferDepthHistory"), additionalData.depthHistory);
+            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_RadianceHistory"), additionalData.colorHistory);
 
             Light dirLight = Object.FindObjectOfType<Light>();
             if(dirLight && dirLight.type==LightType.Directional)
@@ -147,9 +150,11 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
             // Output
             commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_Radiance"), additionalData.rayTracingOutput);
-            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_RadianceHistory"), additionalData.colorHistory);
 
             commandBuffer.DispatchRays(renderPipelineAsset.rayTracingShader, "MainRayGenShader", (uint)camera.pixelWidth, (uint)camera.pixelHeight, 1, camera);
+
+            commandBuffer.CopyTexture(additionalData.rayTracingOutput, additionalData.colorHistory);
+            commandBuffer.CopyTexture(additionalData.gBufferIntersectionT, additionalData.depthHistory);
 
             AtrousFilter(
                 renderPipelineAsset, 

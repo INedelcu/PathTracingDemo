@@ -6,7 +6,7 @@
 /*.sln
 *.swp
 *.vcxproj.user
-
+.hg*
 /Library
 /Logs
 /UserSettings
