@@ -1,3 +1,6 @@
+#ifndef UTILS_HLSL_INCLUDED
+#define UTILS_HLSL_INCLUDED
+
 #define K_PI                    3.1415926535f
 #define K_HALF_PI               1.5707963267f
 #define K_QUARTER_PI            0.7853981633f
@@ -167,3 +170,14 @@ float4 SampleColorFromHistory(RWTexture2D<float4> color, float2 coords, int2 tex
 
 #endif
 }
+
+float3x3 CreateTangentToWorld(float3 normal, float3 tangent, float flipSign, float oddNegativeScale)
+{
+    // For odd-negative scale transforms we need to flip the sign
+    float sgn = flipSign * oddNegativeScale;
+    float3 bitangent = cross(normal, tangent) * sgn;
+
+    return float3x3(tangent, bitangent, normal);
+}
+
+#endif

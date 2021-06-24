@@ -7,7 +7,8 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
 {
     private static class Styles
     {
-        public static GUIContent albedoText = EditorGUIUtility.TrTextContent("Albedo", "Albedo (RGB)");        
+        public static GUIContent albedoText = EditorGUIUtility.TrTextContent("Albedo", "Albedo (RGB)");
+        public static GUIContent normalText = EditorGUIUtility.TrTextContent("Normal", "Normal (RGB)");
         public static GUIContent emissionText = EditorGUIUtility.TrTextContent("Color", "Emission (RGB)");
     }
 
@@ -15,6 +16,7 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
 
     MaterialProperty albedoTex = null;
     MaterialProperty albedoColor = null;
+    MaterialProperty normalTex = null;
     MaterialProperty metalicValue = null;
     MaterialProperty emissionState = null;
     MaterialProperty emissionTex = null;
@@ -29,6 +31,8 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
     {
         albedoTex = FindProperty("_MainTex", props);
         albedoColor = FindProperty("_Color", props);
+
+        normalTex = FindProperty("_NormalMap", props);
 
         metalicValue = FindProperty("_Metallic", props);
 
@@ -90,6 +94,12 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
 
             EditorGUI.indentLevel = 1;
             m_MaterialEditor.TextureScaleOffsetProperty(albedoTex);        
+            EditorGUI.indentLevel = 0;
+
+            m_MaterialEditor.TexturePropertySingleLine(Styles.normalText, normalTex);
+
+            EditorGUI.indentLevel = 1;
+            m_MaterialEditor.TextureScaleOffsetProperty(normalTex);
             EditorGUI.indentLevel = 0;
 
             m_MaterialEditor.ColorProperty(specularColor, "Specular Color");

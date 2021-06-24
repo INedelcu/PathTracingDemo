@@ -5,6 +5,8 @@ Shader "PathTracing/Standard"
         _Color("Color", Color) = (1, 1, 1, 1)
         _MainTex("Albedo", 2D) = "white" {}
 
+        _NormalMap("NormalMap", 2D) = "bump" {}
+
         [Toggle]_Emission("Emission", float) = 0
 
          [HDR]_EmissionColor("EmissionColor", Color) = (0,0,0)
@@ -109,6 +111,10 @@ Shader "PathTracing/Standard"
             float4 _MainTex_ST;
             SamplerState sampler__MainTex;
 
+            Texture2D<float3> _NormalMap;
+            float4 _NormalMap_ST;
+            SamplerState sampler__NormalMap;
+
             Texture2D<float4> _EmissionTex;
             float4 _EmissionTex_ST;
             SamplerState sampler__EmissionTex;
@@ -119,6 +125,8 @@ Shader "PathTracing/Standard"
             float _Metallic;
             float _IOR;
 
+            float4 unity_WorldTransformParams;
+
             struct AttributeData
             {
                 float2 barycentrics;
@@ -128,6 +136,7 @@ Shader "PathTracing/Standard"
             {
                 float3 position;
                 float3 normal;
+                float4 tangent;
                 float2 uv;
             };
 
@@ -136,6 +145,7 @@ Shader "PathTracing/Standard"
                 Vertex v;
                 v.position = UnityRayTracingFetchVertexAttribute3(vertexIndex, kVertexAttributePosition);
                 v.normal = UnityRayTracingFetchVertexAttribute3(vertexIndex, kVertexAttributeNormal);
+                v.tangent = UnityRayTracingFetchVertexAttribute4(vertexIndex, kVertexAttributeTangent);
                 v.uv = UnityRayTracingFetchVertexAttribute2(vertexIndex, kVertexAttributeTexCoord0);
                 return v;
             }
@@ -146,6 +156,7 @@ Shader "PathTracing/Standard"
                 #define INTERPOLATE_ATTRIBUTE(attr) v.attr = v0.attr * barycentrics.x + v1.attr * barycentrics.y + v2.attr * barycentrics.z
                 INTERPOLATE_ATTRIBUTE(position);
                 INTERPOLATE_ATTRIBUTE(normal);
+                INTERPOLATE_ATTRIBUTE(tangent);
                 INTERPOLATE_ATTRIBUTE(uv);
                 return v;
             }
@@ -179,6 +190,12 @@ Shader "PathTracing/Standard"
                 float3 localNormal = isFrontFace ? v.normal : -v.normal;
 
                 float3 worldNormal = normalize(mul(localNormal, (float3x3)WorldToObject()));
+
+                float3 worldTangent = normalize(mul(v.tangent.xyz, (float3x3)WorldToObject()));
+                float3x3 tangentToWorld = CreateTangentToWorld(worldNormal, worldTangent, sign(v.tangent.w), unity_WorldTransformParams.w);
+                float3 normalTS = _NormalMap.SampleLevel(sampler__NormalMap, _NormalMap_ST.xy * v.uv + _NormalMap_ST.zw, 0).xyz * 2 - 1;
+
+                worldNormal = normalize(mul(normalTS, tangentToWorld));
 
                 float fresnelFactor = FresnelReflectAmountOpaque(isFrontFace ? 1 : _IOR, isFrontFace ? _IOR : 1, WorldRayDirection(), worldNormal);
 
@@ -235,8 +252,14 @@ Shader "PathTracing/Standard"
 
             #include "UnityRaytracingMeshUtils.cginc"
             #include "RayPayloadGBuffer.hlsl"
+            #include "Utils.hlsl"
 
             float4x4 unity_MatrixPreviousM;
+            float4 unity_WorldTransformParams;
+
+            Texture2D<float3> _NormalMap;
+            float4 _NormalMap_ST;
+            SamplerState sampler__NormalMap;
 
             struct AttributeData
             {
@@ -247,6 +270,8 @@ Shader "PathTracing/Standard"
             {
                 float3 position;
                 float3 normal;
+                float4 tangent;
+                float2 uv;
             };
 
             Vertex FetchVertex(uint vertexIndex)
@@ -254,6 +279,8 @@ Shader "PathTracing/Standard"
                 Vertex v;
                 v.position = UnityRayTracingFetchVertexAttribute3(vertexIndex, kVertexAttributePosition);
                 v.normal = UnityRayTracingFetchVertexAttribute3(vertexIndex, kVertexAttributeNormal);
+                v.tangent = UnityRayTracingFetchVertexAttribute4(vertexIndex, kVertexAttributeTangent);
+                v.uv = UnityRayTracingFetchVertexAttribute2(vertexIndex, kVertexAttributeTexCoord0);
                 return v;
             }
 
@@ -263,6 +290,8 @@ Shader "PathTracing/Standard"
                 #define INTERPOLATE_ATTRIBUTE(attr) v.attr = v0.attr * barycentrics.x + v1.attr * barycentrics.y + v2.attr * barycentrics.z
                 INTERPOLATE_ATTRIBUTE(position);
                 INTERPOLATE_ATTRIBUTE(normal);
+                INTERPOLATE_ATTRIBUTE(tangent);
+                INTERPOLATE_ATTRIBUTE(uv);
                 return v;
             }
 
@@ -282,7 +311,13 @@ Shader "PathTracing/Standard"
                 float3 worldPos = mul(ObjectToWorld(), float4(v.position, 1.0)).xyz;
                 float3 prevWorldPos = mul(unity_MatrixPreviousM, float4(v.position, 1.0)).xyz;
 
-                payload.worldNormal = normalize(mul(v.normal, (float3x3)WorldToObject()));
+                float3 worldNormal = normalize(mul(v.normal, (float3x3)WorldToObject()));
+
+                float3 worldTangent = normalize(mul(v.tangent.xyz, (float3x3)WorldToObject()));
+                float3x3 tangentToWorld = CreateTangentToWorld(worldNormal, worldTangent, sign(v.tangent.w), unity_WorldTransformParams.w);
+                float3 normalTS = _NormalMap.SampleLevel(sampler__NormalMap, _NormalMap_ST.xy * v.uv + _NormalMap_ST.zw, 0).xyz * 2 - 1;
+
+                payload.worldNormal = normalize(mul(normalTS, tangentToWorld));
                 payload.intersectionT = RayTCurrent();
                 payload.velocity = worldPos - prevWorldPos;
             }
