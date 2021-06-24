@@ -24,6 +24,9 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
     MaterialProperty specularColor = null;
     MaterialProperty smoothnessValue = null;
     MaterialProperty iorValue = null;
+    MaterialProperty cutoutState = null;
+    MaterialProperty cutoffValue = null;
+
 
     bool firstTimeApply = true;
 
@@ -45,6 +48,10 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
         smoothnessValue = FindProperty("_Smoothness", props);
 
         iorValue = FindProperty("_IOR", props);
+
+        cutoutState = FindProperty("_Cutout", props);
+        cutoffValue = FindProperty("_Cutoff", props);
+
     }
 
     public override void OnGUI(MaterialEditor materialEditor, MaterialProperty[] properties)
@@ -75,6 +82,7 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
     void SetMaterialKeywords(Material m)
     {
         SetKeyword(m, "_EMISSION", (emissionState.floatValue != 0.0f));
+        SetKeyword(m, "GEOM_TYPE_LEAF", (cutoutState.floatValue != 0.0f));
     }
 
     void MaterialChanged(Material material)
@@ -87,6 +95,7 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
         EditorGUIUtility.labelWidth = 0f;
 
         bool showEmissionSettings = false;
+        bool isCutout = false;
 
         EditorGUI.BeginChangeCheck();
         {
@@ -131,11 +140,25 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
                 if (emissionTex.textureValue != null && !hadEmissionTexture && brightness <= 0f)
                     emissionColor.colorValue = Color.white;
             }
+
+            isCutout = (cutoutState.floatValue != 0.0f);
+
+            EditorGUI.showMixedValue = cutoutState.hasMixedValue;
+
+            isCutout = EditorGUILayout.Toggle("IsCutout", isCutout);
+
+            if (isCutout)
+            {
+                EditorGUI.indentLevel = 1;
+                m_MaterialEditor.RangeProperty(cutoffValue, "Alpha Cutoff");
+                EditorGUI.indentLevel = 0;
+            }
         }
 
         if (EditorGUI.EndChangeCheck())
         {
             emissionState.floatValue = showEmissionSettings ? 1.0f : 0.0f;
+            cutoutState.floatValue = isCutout ? 1.0f : 0.0f;
 
             MaterialChanged(material);
         }
