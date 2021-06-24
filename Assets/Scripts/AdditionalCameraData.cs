@@ -15,6 +15,9 @@ public class AdditionalCameraData : MonoBehaviour
     public RenderTexture colorHistory = null;
 
     [HideInInspector]
+    public RenderTexture depthHistory = null;
+
+    [HideInInspector]
     public RenderTexture gBufferWorldNormals = null;
 
     [HideInInspector]
@@ -80,6 +83,28 @@ public class AdditionalCameraData : MonoBehaviour
 
             // when we (re)create the history buffer, reset the iteration for the camera
             frameIndex = 0;
+        }
+
+        if (depthHistory == null || depthHistory.width != camera.pixelWidth || depthHistory.height != camera.pixelHeight)
+        {
+            if (depthHistory != null)
+                depthHistory.Release();
+
+            RenderTextureDescriptor rtDesc = new RenderTextureDescriptor()
+            {
+                dimension = TextureDimension.Tex2D,
+                width = camera.pixelWidth,
+                height = camera.pixelHeight,
+                depthBufferBits = 0,
+                volumeDepth = 1,
+                msaaSamples = 1,
+                vrUsage = VRTextureUsage.OneEye,
+                graphicsFormat = GraphicsFormat.R32_SFloat,
+                enableRandomWrite = true,
+            };
+
+            depthHistory = new RenderTexture(rtDesc);
+            depthHistory.Create();
         }
 
         if (rayTracingOutput == null || rayTracingOutput.width != camera.pixelWidth || rayTracingOutput.height != camera.pixelHeight)
@@ -244,6 +269,12 @@ public class AdditionalCameraData : MonoBehaviour
         {
             colorHistory.Release();
             colorHistory = null;
+        }
+
+        if (depthHistory != null)
+        {
+            depthHistory.Release();
+            depthHistory = null;
         }
 
         if (rayTracingOutput != null)

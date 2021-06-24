@@ -37,9 +37,10 @@ public class RaytracingRenderPipelineAsset : RenderPipelineAsset
 
     [Header("Temporal Accumulation Settings")]
     public bool enableAccumulation = true;
-    public bool useMotionVectors = false;
+    public bool useMotionVectors = true;
     [Range(0f, 1f)]
     public float alpha = 0.2f;
+    public float speedAdaptation = 0.01f;
 
     [Header("Environment Settings")]
     // replace with environment from Lighting window.

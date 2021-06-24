@@ -20,11 +20,13 @@ int                             g_DirectionalLightShadows;
 float4x4                        g_PreviousViewProjection;
 int                             g_EnableAccumulation;
 int                             g_EnableMotionVectors;
-float                           g_Alpha;    // for accumulation
+float4                          g_Alpha;    // for accumulation
+Texture2D<float4>               g_GBufferDepth;
+Texture2D<float4>               g_RadianceHistory;
+Texture2D<float>                g_GBufferDepthHistory;
 
 // Output
 RWTexture2D<float4>             g_Radiance;
-RWTexture2D<float4>             g_RadianceHistory;
 
 [shader("raygeneration")]
 void MainRayGenShader()
@@ -45,7 +47,13 @@ void MainRayGenShader()
     float3 rayDirection = mul((float3x3)unity_CameraToWorld, viewDirection);
 
     float3 radiance = float3(0, 0, 0);
-    float2 motionVector = float2(0, 0);
+
+    // By default puth the motion vector to somthing huge that points out of the screen (and will be rejected).
+    // This handles properly skybox pixels, where we don;t want the motion vector 0.
+    float2 motionVector = float2(500000, 500000);
+    if (g_EnableMotionVectors == 0)
+        motionVector = 0;
+
     uint rngState = 0;
 
     for(uint sampleCount = 0; sampleCount < g_SampleCount; sampleCount++)
@@ -127,10 +135,10 @@ void MainRayGenShader()
                 }
                 else
                 {
-                    payLoadShadow.bounceIndexOpaque = -1;
+                    payLoadShadow.bounceIndexOpaque = INVALID_BOUNCE_INDEX;
                 }
 
-                if(payLoadShadow.bounceIndexOpaque == -1)
+                if(payLoadShadow.bounceIndexOpaque == INVALID_BOUNCE_INDEX)
                 {
                     radiance += saturate(dot(-g_DirectionalLight.xyz,payload.lastWorldNormal)) * g_DirectionalLightColor.xyz * throughput;
                 }
@@ -163,12 +171,19 @@ void MainRayGenShader()
 
     if (g_EnableAccumulation == 1)
     {
-        float alpha = g_Alpha;
+        float alpha = g_Alpha.x;
         float2 projCoord = frameCoord - motionVector;
-        if (projCoord.x < 0 || projCoord.y < 0 || projCoord.x > launchDim.x || projCoord.y > launchDim.y || g_FrameIndex == 0)
+
+        // Adaptively adjust alpha based on motion
+        alpha = min(1.0, alpha + g_Alpha.y * length(motionVector));
+
+        if (projCoord.x < 0 || projCoord.y < 0 || projCoord.x > launchDim.x || projCoord.y > launchDim.y || g_FrameIndex < 1)
             alpha = 1.0;
 
-        float3 prevRadiance = SampleColorFromHistory(g_RadianceHistory, projCoord, launchDim).xyz;
+        float currentDepth = g_GBufferDepth[frameCoord].x;
+
+        float confidense = 1;
+        float3 prevRadiance = SampleColorFromHistory(g_RadianceHistory, g_GBufferDepthHistory, currentDepth, projCoord, launchDim, confidense).xyz;
 
         float3 result = lerp(prevRadiance, radiance / g_SampleCount, alpha);
 
@@ -177,7 +192,6 @@ void MainRayGenShader()
             result = 0;
 
         g_Radiance[launchIndex] = float4(result, 1);
-        g_RadianceHistory[launchIndex] = float4(result, 1);
     }
     else
     {
@@ -194,5 +208,5 @@ void MainRayGenShader()
 void MainMissShader0(inout RayPayload payload : SV_RayPayload)
 {
     payload.emission                = !payload.isShadowRay ? g_EnvTex.SampleLevel(sampler_g_EnvTex, WorldRayDirection(), 0).xyz : float3(0, 0, 0);
-    payload.bounceIndexOpaque       = -1;
+    payload.bounceIndexOpaque       = INVALID_BOUNCE_INDEX;
 }

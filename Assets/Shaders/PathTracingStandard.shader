@@ -155,7 +155,7 @@ Shader "PathTracing/Standard"
             {
                 if (payload.bounceIndexOpaque == g_BounceCountOpaque)
                 {
-                    payload.bounceIndexOpaque = -1;
+                    payload.bounceIndexOpaque = INVALID_BOUNCE_INDEX;
                     return;
                 }
 

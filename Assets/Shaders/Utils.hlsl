@@ -4,11 +4,14 @@
 #define K_TWO_PI                6.283185307f
 #define K_T_MAX                 10000
 #define K_RAY_ORIGIN_PUSH_OFF   0.002
+#define INVALID_BOUNCE_INDEX    -100000
 
 #include "BluenoiseSampling.hlsl"
 #define USE_BLUENOISE_SAMPLING
 
 #define NB_RAND_BOUNCE 4
+
+SamplerState s_linear_clamp_sampler;
 
 uint WangHash(inout uint seed)
 {
@@ -75,8 +78,13 @@ void CreateOrthoNormalBasis(in float3 n, inout float3 tangent, inout float3 bita
 
 float3 RandomUnitVector(inout uint state, uint2 pixelCoord, uint sampleIndex, uint sampleDimension)
 {
+#ifdef USE_BLUENOISE_SAMPLING
+    float z = GetBNDSequenceSample(pixelCoord, sampleIndex, sampleDimension) * 2.0f - 1.0f;
+    float a = GetBNDSequenceSample(pixelCoord, sampleIndex, sampleDimension + 1) * K_TWO_PI;
+#else
     float z = RandomFloat01(state) * 2.0f - 1.0f;
     float a = RandomFloat01(state) * K_TWO_PI;
+#endif
 
     float r = sqrt(1.0f - z * z);
     float x = r * cos(a);
@@ -133,37 +141,18 @@ float FresnelReflectAmountTransparent(float n1, float n2, float3 incident, float
     return r0 + (1.0 - r0)*xx*xx*x;
 }
 
-float4 SampleColorFromHistory(RWTexture2D<float4> color, float2 coords, int2 texSize)
+#define TEX_FILTER 1
+
+float4 SampleColorFromHistory(Texture2D<float4> colorHistory, Texture2D<float> depthHistory, float currentDepth, float2 coords, int2 texSize, out float confidence)
 {
-#if 0
+    confidence = 1;
+#if TEX_FILTER == 0
     // point sampling
-    return color.Load(coords);
-#else
+    return colorHistory[coords];
+#elif TEX_FILTER == 1
     // bilinear filter
-    float2 tc1 = floor(coords + 0.5) - 0.5;
-    float2 tc2 = tc1 + float2(1, 0);
-    float2 tc3 = tc1 + float2(0, 1);
-    float2 tc4 = tc1 + float2(1, 1);
-
-    float2 w = coords - tc1;
-
-    tc1 = min(tc1, texSize - 1);
-    tc2 = min(tc2, texSize - 1);
-    tc3 = min(tc3, texSize - 1);
-    tc4 = min(tc4, texSize - 1);
-    tc1 = max(tc1, 0);
-    tc2 = max(tc2, 0);
-    tc3 = max(tc3, 0);
-    tc4 = max(tc4, 0);
-
-    float4 s1 = color.Load(tc1);
-    float4 s2 = color.Load(tc2);
-    float4 s3 = color.Load(tc3);
-    float4 s4 = color.Load(tc4);
-
-    float4 c1 = lerp(s1, s2, w.x);
-    float4 c2 = lerp(s3, s4, w.x);
-    return lerp(c1, c2, w.y);
-
+    return colorHistory.SampleLevel(s_linear_clamp_sampler, coords / texSize, 0);
+#else
+    // WIP depth based rejection
 #endif
 }
