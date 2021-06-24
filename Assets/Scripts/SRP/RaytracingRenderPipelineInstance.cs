@@ -78,7 +78,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             }
             additionalData.CreatePersistentResources(camera);
 
-            if (!renderPipelineAsset.rayTracingShader || !renderPipelineAsset.rayTracingShaderGBuffer)
+            if (!renderPipelineAsset.rayTracingShader)
             {
                 Debug.LogError("No RayTracing shader!");
                 return;
@@ -93,24 +93,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             context.SetupCameraProperties(camera);
 
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            // Generate GBuffer for denoising input.
-            commandBuffer.SetRayTracingShaderPass(renderPipelineAsset.rayTracingShaderGBuffer, "PathTracingGBuffer");
-
-            // Input
-            commandBuffer.SetRayTracingAccelerationStructure(renderPipelineAsset.rayTracingShaderGBuffer, Shader.PropertyToID("g_AccelStruct"), rayTracingAccelerationStructure);
-            commandBuffer.SetRayTracingFloatParam(renderPipelineAsset.rayTracingShaderGBuffer, Shader.PropertyToID("g_Zoom"), Mathf.Tan(Mathf.Deg2Rad * camera.fieldOfView * 0.5f));
-            commandBuffer.SetRayTracingFloatParam(renderPipelineAsset.rayTracingShaderGBuffer, Shader.PropertyToID("g_AspectRatio"), camera.pixelWidth / (float)camera.pixelHeight);
-
-            // Output
-            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShaderGBuffer, Shader.PropertyToID("g_GBufferWorldNormals"), additionalData.gBufferWorldNormals);
-            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShaderGBuffer, Shader.PropertyToID("g_GBufferIntersectionT"), additionalData.gBufferIntersectionT);
-            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShaderGBuffer, Shader.PropertyToID("g_GBufferMotionVectors"), additionalData.gBufferMotionVectors);
-
-            commandBuffer.DispatchRays(renderPipelineAsset.rayTracingShaderGBuffer, "MainRayGenShader", (uint)camera.pixelWidth, (uint)camera.pixelHeight, 1, camera);
-
-
-            ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            // Path tracing
+            // Combined path tracing and GBuffer pass
             commandBuffer.SetRayTracingShaderPass(renderPipelineAsset.rayTracingShader, "PathTracing");
 
             // Input
@@ -148,11 +131,17 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
 
             BindDitheredTextureSet(commandBuffer, ditheredTextureSet);
 
-            // Output
+            // Path tracer Output
             commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_Radiance"), additionalData.rayTracingOutput);
+            
+            // Gbuffer Output
+            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_GBufferWorldNormals"), additionalData.gBufferWorldNormals);
+            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_GBufferIntersectionT"), additionalData.gBufferIntersectionT);
+            commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_GBufferMotionVectors"), additionalData.gBufferMotionVectors);
 
             commandBuffer.DispatchRays(renderPipelineAsset.rayTracingShader, "MainRayGenShader", (uint)camera.pixelWidth, (uint)camera.pixelHeight, 1, camera);
 
+            // Save temporal accumulation history
             commandBuffer.CopyTexture(additionalData.rayTracingOutput, additionalData.colorHistory);
             commandBuffer.CopyTexture(additionalData.gBufferIntersectionT, additionalData.depthHistory);
 

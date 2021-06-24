@@ -19,7 +19,7 @@ public class RaytracingRenderPipelineAsset : RenderPipelineAsset
     public bool debugOutput = false;
 
     public RayTracingShader rayTracingShader = null;
-    public RayTracingShader rayTracingShaderGBuffer = null;    
+ 
     [Header("A-Trous Settings")]
     public bool EnableATrous = false;
     public ComputeShader aTrousShader = null;

@@ -126,6 +126,7 @@ Shader "PathTracing/Standard"
             float _IOR;
 
             float4 unity_WorldTransformParams;
+            float4x4 unity_MatrixPreviousM;
 
             struct AttributeData
             {
@@ -220,6 +221,7 @@ Shader "PathTracing/Standard"
                 float3 reflectedRayDir = lerp(diffuseRayDir, specularRayDir, doSpecular);
 
                 float3 worldPosition = mul(ObjectToWorld(), float4(v.position, 1)).xyz;
+                float3 prevWorldPos = mul(unity_MatrixPreviousM, float4(v.position, 1.0)).xyz;
 
                 // Bounced ray origin is pushed off of the surface using the face normal (not the interpolated normal).
                 float3 e0 = v1.position - v0.position;
@@ -236,6 +238,8 @@ Shader "PathTracing/Standard"
                 payload.bounceRayDirection  = reflectedRayDir;
                 payload.lastWorldNormal     = worldNormal;
                 payload.lastWorldPosition   = worldPosition;
+                payload.intersectionT       = RayTCurrent();
+                payload.velocity            = worldPosition - prevWorldPos;
             }
 
             ENDHLSL

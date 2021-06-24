@@ -25,8 +25,13 @@ Texture2D<float4>               g_GBufferDepth;
 Texture2D<float4>               g_RadianceHistory;
 Texture2D<float>                g_GBufferDepthHistory;
 
-// Output
+// Path tracer output
 RWTexture2D<float4>             g_Radiance;
+
+// G-Buffer output
+RWTexture2D<float4>             g_GBufferWorldNormals;
+RWTexture2D<float>              g_GBufferIntersectionT;
+RWTexture2D<float4>             g_GBufferMotionVectors;
 
 [shader("raygeneration")]
 void MainRayGenShader()
@@ -109,6 +114,15 @@ void MainRayGenShader()
                 projCoords.xyz = projCoords.xyz / projCoords.w;
                 projCoords.xy = (projCoords.xy * 0.5 + 0.5) * float2(launchDim.x - 1, launchDim.y - 1);
                 motionVector = frameCoord - projCoords.xy;
+
+                g_GBufferMotionVectors[launchIndex] = float4(payload.velocity, 1);
+            }
+
+            // GBuffer is saved only for the first bounce and first sample
+            if (bounceNum == 1 && sampleCount == 0)
+            {
+                g_GBufferWorldNormals[launchIndex] = float4(payload.lastWorldNormal, 1);
+                g_GBufferIntersectionT[launchIndex] = payload.intersectionT;
             }
 
             if(payload.bounceIndexOpaque < 0)

@@ -183,6 +183,7 @@ Shader "PathTracing/StandardGlass"
                 payload.bounceRayDirection      = bounceRayDir;
                 payload.lastWorldNormal         = worldNormal;
                 payload.lastWorldPosition       = worldPosition;
+                payload.intersectionT           = RayTCurrent();
             }
 
             ENDHLSL
