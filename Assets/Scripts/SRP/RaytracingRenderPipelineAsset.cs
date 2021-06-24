@@ -16,6 +16,8 @@ public class RaytracingRenderPipelineAsset : RenderPipelineAsset
     [Range(1, 256)]
     public int sampleCount = 1;
 
+    public bool enableSubPixelJittering = true;
+
     public bool debugOutput = false;
 
     public RayTracingShader rayTracingShader = null;

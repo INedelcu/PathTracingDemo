@@ -7,6 +7,8 @@
 
 #pragma max_recursion_depth 1
 
+#define ENV_DIST 10000000.0
+
 // Input
 float                           g_Zoom;
 float                           g_AspectRatio;
@@ -20,6 +22,7 @@ int                             g_DirectionalLightShadows;
 float4x4                        g_PreviousViewProjection;
 int                             g_EnableAccumulation;
 int                             g_EnableMotionVectors;
+int                             g_EnableSubPixelJittering;
 float4                          g_Alpha;    // for accumulation
 Texture2D<float4>               g_GBufferDepth;
 Texture2D<float4>               g_RadianceHistory;
@@ -40,8 +43,21 @@ void MainRayGenShader()
     uint2 launchDim = DispatchRaysDimensions().xy;
 
     // Shoot rays through the center of a pixel.
-    float2 frameCoord = launchIndex + float2(0.5, 0.5);
-    float2 ndcCoords = frameCoord  / float2(launchDim.x - 1, launchDim.y - 1);
+    const float2 frameCoord = launchIndex + float2(0.5, 0.5);
+
+    float2 pixelJitter = 0.0;
+
+#ifdef USE_BLUENOISE_SAMPLING
+    if (g_EnableSubPixelJittering)
+    {
+        pixelJitter = float2(GetBNDSequenceSample(launchIndex, g_FrameIndex % 256, 128), GetBNDSequenceSample(launchIndex, g_FrameIndex % 256, 129)) - 0.5;
+
+        if (g_EnableMotionVectors) // To avoid excessive jittering of camera misses hitting the environment texture
+            pixelJitter *= 0.5;
+    }
+#endif
+
+    float2 ndcCoords = (frameCoord + pixelJitter) / float2(launchDim.x - 1, launchDim.y - 1);
         
     ndcCoords = ndcCoords * 2 - float2(1, 1);
 
@@ -54,7 +70,7 @@ void MainRayGenShader()
     float3 radiance = float3(0, 0, 0);
 
     // By default puth the motion vector to somthing huge that points out of the screen (and will be rejected).
-    // This handles properly skybox pixels, where we don;t want the motion vector 0.
+    // This handles properly skybox pixels, where we don't want the motion vector 0.
     float2 motionVector = float2(500000, 500000);
     if (g_EnableMotionVectors == 0)
         motionVector = 0;
@@ -66,7 +82,7 @@ void MainRayGenShader()
 #ifdef USE_BLUENOISE_SAMPLING
         // Change sampling at each frame
         rngState = (g_FrameIndex * g_SampleCount + sampleCount) % 256;
-        
+
         // Fixed sampling
         //uint rngState = sampleCount % 256; 
 #else
@@ -108,12 +124,12 @@ void MainRayGenShader()
             throughput *= payload.albedo;
 
             uint bounceNum = payload.bounceIndexOpaque + payload.bounceIndexTransparent;
-            if (g_EnableMotionVectors == 1 && (bounceNum == 1) && sampleCount == 0)
+            if (g_EnableMotionVectors == 1 && bounceNum == 1 && sampleCount == 0)
             {
                 float4 projCoords = mul(g_PreviousViewProjection, float4(payload.lastWorldPosition, 1.0));
                 projCoords.xyz = projCoords.xyz / projCoords.w;
                 projCoords.xy = (projCoords.xy * 0.5 + 0.5) * float2(launchDim.x - 1, launchDim.y - 1);
-                motionVector = frameCoord - projCoords.xy;
+                motionVector = (frameCoord + pixelJitter) - projCoords.xy;
 
                 g_GBufferMotionVectors[launchIndex] = float4(payload.velocity, 1);
             }

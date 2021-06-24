@@ -105,6 +105,7 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
             commandBuffer.SetRayTracingMatrixParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_PreviousViewProjection"), additionalData.previousViewProjection);
             commandBuffer.SetRayTracingIntParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_EnableAccumulation"), renderPipelineAsset.enableAccumulation ? 1: 0);
             commandBuffer.SetRayTracingIntParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_EnableMotionVectors"), renderPipelineAsset.useMotionVectors ? 1 : 0);
+            commandBuffer.SetRayTracingIntParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_EnableSubPixelJittering"), renderPipelineAsset.enableSubPixelJittering ? 1 : 0);
             commandBuffer.SetRayTracingVectorParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_Alpha"), new Vector4(renderPipelineAsset.alpha, renderPipelineAsset.speedAdaptation, 0, 1));
             commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_GBufferDepth"), additionalData.gBufferIntersectionT);
             commandBuffer.SetRayTracingTextureParam(renderPipelineAsset.rayTracingShader, Shader.PropertyToID("g_GBufferDepthHistory"), additionalData.depthHistory);
