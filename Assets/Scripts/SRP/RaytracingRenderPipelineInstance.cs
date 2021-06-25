@@ -156,7 +156,29 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
                 additionalData.gBufferWorldNormals, 
                 additionalData.gBufferIntersectionT);
 
-            commandBuffer.Blit(additionalData.rayTracingOutput, camera.activeTexture);
+            // Apply AA and tonemapping.
+            int currentInput = 0;
+            int currentOutput = 1;
+            RenderTexture[] blitList = new RenderTexture[] {additionalData.rayTracingOutput, additionalData.aTrousPingpongRadiance};
+            if (camera.GetComponent<AntialiasingAsPostEffect>() && 
+                camera.GetComponent<AntialiasingAsPostEffect>().isActiveAndEnabled && 
+                camera.GetComponent<Tonemapping>() && 
+                camera.GetComponent<Tonemapping>().isActiveAndEnabled)
+            {
+                camera.GetComponent<AntialiasingAsPostEffect>().Apply(commandBuffer, blitList[currentInput], blitList[currentOutput]);
+                
+                int temp = currentInput;
+                currentInput = currentOutput;
+                currentOutput = temp;
+        
+                camera.GetComponent<Tonemapping>()
+                    .Apply(commandBuffer, blitList[currentInput], blitList[currentOutput]);
+                
+                temp = currentInput;
+                currentInput = currentOutput;
+                currentOutput = temp;
+            }
+            commandBuffer.Blit(blitList[currentInput], camera.activeTexture);
 
             // Instruct the graphics API to perform all scheduled commands
             context.ExecuteCommandBuffer(commandBuffer);
