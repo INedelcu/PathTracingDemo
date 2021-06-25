@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 1323501490}
-  m_IndirectSpecularColor: {r: 0.44657898, g: 0.4964133, b: 0.5748178, a: 1}
+  m_IndirectSpecularColor: {r: 0.43862343, g: 0.48674607, b: 0.567021, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -621,6 +621,8 @@ GameObject:
   - component: {fileID: 963194226}
   - component: {fileID: 963194230}
   - component: {fileID: 963194231}
+  - component: {fileID: 963194233}
+  - component: {fileID: 963194232}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -748,6 +750,59 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   instances: {x: 4, y: 4}
   instanceSpacing: {x: 25, y: 25}
+--- !u!114 &963194232
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 963194225}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 060211ce79aff6d4892db99a6428dfb4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  mode: 1
+  showGeneratedNormals: 0
+  offsetScale: 0.2
+  blurRadius: 18
+  edgeThresholdMin: 0.05
+  edgeThreshold: 0.2
+  edgeSharpness: 4
+  dlaaSharp: 0
+  ssaaShader: {fileID: 4800000, guid: b3728d1488b02490cbd196c7941bf1f8, type: 3}
+  dlaaShader: {fileID: 4800000, guid: 017ca72b9e8a749058d13ebd527e98fa, type: 3}
+  nfaaShader: {fileID: 4800000, guid: ce0cb2621f6d84e21a87414e471a3cce, type: 3}
+  shaderFXAAPreset2: {fileID: 4800000, guid: 6f1418cffd12146f2a83be795f6fa5a7, type: 3}
+  shaderFXAAPreset3: {fileID: 4800000, guid: c182fa94a5a0a4c02870641efcd38cd5, type: 3}
+  shaderFXAAII: {fileID: 4800000, guid: cd5b323dcc592457790ff18b528f5e67, type: 3}
+  shaderFXAAIII: {fileID: 4800000, guid: c547503fff0e8482ea5793727057041c, type: 3}
+--- !u!114 &963194233
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 963194225}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: daa38b471ebc6ac42a5d9e64b7f58506, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  type: 0
+  adaptiveTextureSize: 256
+  remapCurve:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  exposureAdjustment: 1.63
+  middleGrey: 1.33
+  white: 1.43
+  adaptionSpeed: 1.5
+  tonemapper: {fileID: 4800000, guid: 003377fc2620a44939dadde6fe3f8190, type: 3}
+  validRenderTextureFormat: 1
 --- !u!1 &1323501489
 GameObject:
   m_ObjectHideFlags: 0
