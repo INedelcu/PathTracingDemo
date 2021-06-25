@@ -161,12 +161,12 @@ void MainRayGenShader()
             */
 
             // Compute direction from 2d
-            /*
+ /*           
             float3 directionEnv = g_EnvTexSampling.Load(int3(envX, envY, 0));
             float u = directionEnv.x;
             float v = directionEnv.y;
 
-            float phi   = -u*K_PI + K_PI/2.0f;
+            float phi   = 2.0f*u*K_PI+ K_PI;// / 2.0f;
             float theta = K_PI * (1.0f-v);
 
             directionEnv.x = (sin(theta) * sin(phi));
@@ -174,13 +174,13 @@ void MainRayGenShader()
             directionEnv.z = (sin(theta) * cos(phi));
 
             directionEnv = normalize(directionEnv);
-            */
+   */         
             
             // Get 3d coords from texture
             
             float3 directionEnv = g_EnvTexSampling.Load(int3(envX, envY, 0));
             directionEnv = directionEnv * float3(2.0f,2.0f,2.0f) - float3(1.0f,1.0f,1.0f);
-            
+            directionEnv = normalize(directionEnv);
 
             //payload.emission = float3(1,1,1);
             payload.emission                = g_EnvTex.SampleLevel(sampler_g_EnvTex, directionEnv, 0).xyz;

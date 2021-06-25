@@ -439,11 +439,15 @@ public class RaytracingRenderPipelineInstance : RenderPipeline
                 */
 
                 //Store 3D coords
-                float phi   = -u*Mathf.PI + Mathf.PI/2.0f;
+                float phi   = 2.0f*u*Mathf.PI + Mathf.PI;
                 float theta = Mathf.PI * (1.0f-v);
-                color.r = (1.0f + (Mathf.Sin(theta) * Mathf.Sin(phi))) / 2.0f;
-                color.g = (1.0f + Mathf.Cos(theta) ) / 2.0f;
-                color.b = (1.0f + Mathf.Sin(theta) * Mathf.Cos(phi)) / 2.0f;
+                color.r =  Mathf.Sin(theta) * Mathf.Sin(phi);
+                color.g =  Mathf.Cos(theta);
+                color.b =  Mathf.Sin(theta) * Mathf.Cos(phi);
+
+                color.r = (1.0f + color.r) / 2.0f;
+                color.g = (1.0f + color.g ) / 2.0f;
+                color.b = (1.0f + color.b) / 2.0f;
                 
             //directionEnv = normalize(directionEnv);
             
