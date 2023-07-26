@@ -13,7 +13,7 @@ This demo implements a Monte Carlo Path Tracing technique using hardware acceler
 ## Prerequisites
 
 * Windows 10 version 1809 and above.
-* Any NVIDIA GPU starting from GTX 1060 with 6 GB of VRAM. AMD 6000 series GPUs based on RDNA 2 architecture might also run the demo but were not tested.
+* Any NVIDIA GPU starting from GTX 1060 with 6 GB of VRAM. AMD 6000 series GPUs based on RDNA 2 and above will also run the demo.
 * Unity 2020.2 and above.
 
 ## Recommendations
