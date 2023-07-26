@@ -21,7 +21,7 @@ Shader "PathTracing/Standard"
    
     SubShader
     {
-        Tags { "RenderType" = "Opaque" }
+        Tags { "RenderType" = "Opaque" "DisableBatching" = "True"}
         LOD 100
      
          Pass
