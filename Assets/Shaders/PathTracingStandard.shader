@@ -172,7 +172,7 @@ Shader "PathTracing/Standard"
                 float3 emission = float3(0, 0, 0);
 
 #if _EMISSION
-                emission = _EmissionColor * _EmissionTex.SampleLevel(sampler__EmissionTex, _EmissionTex_ST.xy * v.uv + _EmissionTex_ST.zw, 0).xyz;
+                emission = _EmissionColor.xyz * _EmissionTex.SampleLevel(sampler__EmissionTex, _EmissionTex_ST.xy * v.uv + _EmissionTex_ST.zw, 0).xyz;
 #endif               
                 bool isFrontFace = HitKind() == HIT_KIND_TRIANGLE_FRONT_FACE;
 
