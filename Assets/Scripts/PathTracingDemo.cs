@@ -14,10 +14,10 @@ public class PathTracingDemo : MonoBehaviour
 
     [Range(1, 100)]
     public uint bounceCountTransparent = 8;
-    
+
     private uint cameraWidth = 0;
     private uint cameraHeight = 0;
-    
+
     private int convergenceStep = 0;
 
     private Matrix4x4 prevCameraMatrix;
@@ -25,18 +25,19 @@ public class PathTracingDemo : MonoBehaviour
     private uint prevBounceCountTransparent = 0;
 
     private RenderTexture rayTracingOutput = null;
-    
+
     private RayTracingAccelerationStructure rayTracingAccelerationStructure = null;
 
     private void CreateRayTracingAccelerationStructure()
     {
         if (rayTracingAccelerationStructure == null)
         {
-            RayTracingAccelerationStructure.RASSettings settings = new RayTracingAccelerationStructure.RASSettings();
-            settings.rayTracingModeMask = RayTracingAccelerationStructure.RayTracingModeMask.Everything;
-            settings.managementMode = RayTracingAccelerationStructure.ManagementMode.Automatic;
-            settings.layerMask = 255;
-
+            RayTracingAccelerationStructure.Settings settings = new RayTracingAccelerationStructure.Settings()
+            {
+                rayTracingModeMask = RayTracingAccelerationStructure.RayTracingModeMask.Everything,
+                managementMode = RayTracingAccelerationStructure.ManagementMode.Automatic,
+                layerMask = 255
+            };
             rayTracingAccelerationStructure = new RayTracingAccelerationStructure(settings);
         }
     }
@@ -54,7 +55,7 @@ public class PathTracingDemo : MonoBehaviour
             rayTracingOutput.Release();
             rayTracingOutput = null;
         }
-     
+
         cameraWidth = 0;
         cameraHeight = 0;
     }
@@ -155,10 +156,10 @@ public class PathTracingDemo : MonoBehaviour
         rayTracingShader.SetTexture(Shader.PropertyToID("g_EnvTex"), envTexture);
 
         // Output
-        rayTracingShader.SetTexture(Shader.PropertyToID("g_Radiance"), rayTracingOutput);       
+        rayTracingShader.SetTexture(Shader.PropertyToID("g_Radiance"), rayTracingOutput);
 
         rayTracingShader.Dispatch("MainRayGenShader", (int)cameraWidth, (int)cameraHeight, 1, Camera.main);
-       
+
         Graphics.Blit(rayTracingOutput, dest);
 
         convergenceStep++;

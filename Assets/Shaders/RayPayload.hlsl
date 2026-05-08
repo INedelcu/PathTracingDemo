@@ -1,6 +1,5 @@
 struct RayPayload
 {
-    float k;                // Energy conservation constraint
     float3 albedo;
     float3 emission;
     uint bounceIndexOpaque;

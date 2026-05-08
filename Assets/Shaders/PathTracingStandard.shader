@@ -206,8 +206,8 @@ Shader "PathTracing/Standard"
 
                 float3 albedo = _Color.xyz * _MainTex.SampleLevel(sampler__MainTex, _MainTex_ST.xy * v.uv + _MainTex_ST.zw, 0).xyz;
 
-                payload.k                   = (doSpecular == 1) ? specularChance : 1 - specularChance;
-                payload.albedo              = lerp(albedo, _SpecularColor.xyz, doSpecular);
+                float k                     = (doSpecular == 1) ? specularChance : 1 - specularChance;
+                payload.albedo              = lerp(albedo, _SpecularColor.xyz, doSpecular) / max(0.001, k);
                 payload.emission            = emission;                
                 payload.bounceIndexOpaque   = payload.bounceIndexOpaque + 1;
                 payload.bounceRayOrigin     = worldPosition + K_RAY_ORIGIN_PUSH_OFF * worldFaceNormal;
