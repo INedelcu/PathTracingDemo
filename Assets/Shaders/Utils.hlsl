@@ -1,3 +1,6 @@
+#ifndef UTILS_HLSL
+#define UTILS_HLSL
+
 #define K_PI                    3.1415926535f
 #define K_HALF_PI               1.5707963267f
 #define K_QUARTER_PI            0.7853981633f
@@ -63,3 +66,19 @@ float FresnelReflectAmountTransparent(float n1, float n2, float3 incident, float
     return r0 + (1.0 - r0)*xx*xx*x;
 }
 
+// Branchless orthonormal basis around a unit normal (Duff et al. 2017, "Building an Orthonormal Basis, Revisited").
+void BuildOrthonormalBasis(float3 n, out float3 b1, out float3 b2)
+{
+    float sgn = n.z >= 0.0 ? 1.0 : -1.0;
+    float a = -1.0 / (sgn + n.z);
+    float b = n.x * n.y * a;
+    b1 = float3(1.0 + sgn * n.x * n.x * a, sgn * b, -sgn * n.x);
+    b2 = float3(b, sgn + n.y * n.y * a, -n.y);
+}
+
+float Luminance(float3 c)
+{
+    return dot(c, float3(0.2126, 0.7152, 0.0722));
+}
+
+#endif // UTILS_HLSL
