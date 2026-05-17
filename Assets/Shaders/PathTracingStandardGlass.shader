@@ -73,7 +73,7 @@ Shader "PathTracing/StandardGlass"
             #include "BRDF.hlsl"
             #include "GlobalResources.hlsl"
 
-            #pragma raytracing test
+            #pragma raytracing main_hit_group
 
             #pragma shader_feature _FLAT_SHADING
 

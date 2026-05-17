@@ -1,3 +1,6 @@
+#ifndef RAY_PAYLOAD_H
+#define RAY_PAYLOAD_H
+
 struct RayPayload
 {
     float3 albedo;
@@ -8,3 +11,5 @@ struct RayPayload
     float3 bounceRayDirection;
     uint rngState;          // Random number generator state.
 };
+
+#endif // RAY_PAYLOAD_H
