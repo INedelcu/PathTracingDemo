@@ -78,7 +78,7 @@ void MainRayGenShader()
 #define ENABLE_RUSSIAN_ROULETTE 1
 
 #if ENABLE_RUSSIAN_ROULETTE
-        pathStopProbability = max(throughput.r, max(throughput.g, throughput.b));
+        pathStopProbability = saturate(max(throughput.r, max(throughput.g, throughput.b)));
 
         // Dark colors have higher chance to terminate the path early.
         if (pathStopProbability < RandomFloat01(payload.rngState))
