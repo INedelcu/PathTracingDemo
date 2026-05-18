@@ -4,6 +4,8 @@
 #include "Utils.hlsl"
 #include "RayPayload.hlsl"
 
+#define ENABLE_RUSSIAN_ROULETTE 1
+
 #pragma max_recursion_depth 1
 
 // Input
@@ -59,8 +61,9 @@ void MainRayGenShader()
     payload.bounceRayOrigin         = float3(0, 0, 0);
     payload.bounceRayDirection      = float3(0, 0, 0);
 
-    // Safe net for when shaders have compilation errors and don't increase the bounce index, resulting in an infinite loop.
-    uint safeNet = 0;
+    // Total bounces on this path (opaque + transparent). Also doubles as the infinite-loop safety net
+    // for when shaders have compilation errors and don't increase the bounce index.
+    uint bounceIndex = 0;
 
     float3 radiance = float3(0, 0, 0);
     float3 throughput = float3(1, 1, 1);
@@ -71,26 +74,27 @@ void MainRayGenShader()
 
         radiance += payload.emission * throughput;
 
+		// If the ray hit nothing, we stop early.
+		if (payload.bounceIndexOpaque == -1)
+            break;
+
         throughput *= payload.albedo;
 
-        float pathStopProbability = 1;
-
-#define ENABLE_RUSSIAN_ROULETTE 1
-
 #if ENABLE_RUSSIAN_ROULETTE
-        pathStopProbability = saturate(max(throughput.r, max(throughput.g, throughput.b)));
-
-        // Dark colors have higher chance to terminate the path early.
-        if (pathStopProbability < RandomFloat01(payload.rngState))
-            break;
+		// Skip RR for the first few bounces so the early path, which carries most of the light, is never terminated and keeps its variance low.
+		if (bounceIndex >= 2)
+		{
+			if (RussianRouletteTerminate(throughput, payload.rngState))
+				break;
+		}
 #endif
-
-        throughput *= 1 / pathStopProbability;
 
         ray.Origin      = payload.bounceRayOrigin;
         ray.Direction   = payload.bounceRayDirection;
+
+        bounceIndex++;
     }
-    while ((payload.bounceIndexOpaque <= g_BounceCountOpaque) && (payload.bounceIndexTransparent <= g_BounceCountTransparent) && (++safeNet < 1000));
+    while ((payload.bounceIndexOpaque <= g_BounceCountOpaque) && (payload.bounceIndexTransparent <= g_BounceCountTransparent) && (bounceIndex < 1000));
 
     float3 prevRadiance = g_Radiance[launchIndex].xyz;
 

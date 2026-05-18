@@ -81,4 +81,18 @@ float Luminance(float3 c)
     return dot(c, float3(0.2126, 0.7152, 0.0722));
 }
 
+// Returns true if the path should terminate. On survival, scales throughput by 1 / survivalProbability.
+bool RussianRouletteTerminate(inout float3 throughput, inout uint rngState)
+{
+    // Don't let the survival probability be too low, otherwise we get fireflies (1 / p blowup).
+    float survivalProbability = clamp(max(throughput.r, max(throughput.g, throughput.b)), 0.05, 0.95);
+
+    // Dark colors have higher chance to terminate the path early.
+    if (survivalProbability < RandomFloat01(rngState))
+        return true;
+
+    throughput *= 1 / survivalProbability;
+    return false;
+}
+
 #endif // UTILS_HLSL
