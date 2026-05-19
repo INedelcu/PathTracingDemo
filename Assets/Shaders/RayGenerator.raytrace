@@ -53,36 +53,27 @@ void MainRayGenShader()
     ray.TMax        = K_T_MAX;
 
     RayPayload payload;
-    payload.albedo                  = float3(1, 1, 1);
-    payload.emission                = float3(0, 0, 0);
-    payload.rngState                = rngState;
-    payload.bounceIndexOpaque       = 0;
-    payload.bounceIndexTransparent  = 0;
-    payload.bounceRayOrigin         = float3(0, 0, 0);
-    payload.bounceRayDirection      = float3(0, 0, 0);
-
-    // Total bounces on this path (opaque + transparent). Also doubles as the infinite-loop safety net
-    // for when shaders have compilation errors and don't increase the bounce index.
-    uint bounceIndex = 0;
+	payload.Init(rngState);
 
     float3 radiance = float3(0, 0, 0);
     float3 throughput = float3(1, 1, 1);
 
+    // Total bounce count also doubles as the infinite-loop safety net for when shaders have
+    // compilation errors and don't increase the bounce index.
     do
     {
         TraceRay(g_AccelStruct, 0, 0xFF, 0, 1, missShaderIndex, ray, payload);
 
         radiance += payload.emission * throughput;
 
-		// If the ray hit nothing, we stop early.
-		if (payload.bounceIndexOpaque == -1)
+		if (payload.IsTerminated())
             break;
 
         throughput *= payload.albedo;
 
 #if ENABLE_RUSSIAN_ROULETTE
 		// Skip RR for the first few bounces so the early path, which carries most of the light, is never terminated and keeps its variance low.
-		if (bounceIndex >= 2)
+		if (payload.GetBounceIndexTotal() >= 2)
 		{
 			if (RussianRouletteTerminate(throughput, payload.rngState))
 				break;
@@ -92,9 +83,9 @@ void MainRayGenShader()
         ray.Origin      = payload.bounceRayOrigin;
         ray.Direction   = payload.bounceRayDirection;
 
-        bounceIndex++;
+        payload.IncrementBounceIndexTotal();
     }
-    while ((payload.bounceIndexOpaque <= g_BounceCountOpaque) && (payload.bounceIndexTransparent <= g_BounceCountTransparent) && (bounceIndex < 1000));
+    while (payload.GetBounceIndexTotal() < 1000);
 
     float3 prevRadiance = g_Radiance[launchIndex].xyz;
 
@@ -107,5 +98,5 @@ void MainRayGenShader()
 void MainMissShader0(inout RayPayload payload : SV_RayPayload)
 {
     payload.emission                = g_EnvTex.SampleLevel(sampler_g_EnvTex, WorldRayDirection(), 0).xyz;
-    payload.bounceIndexOpaque       = -1;
+    payload.Terminate();
 }

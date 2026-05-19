@@ -154,9 +154,9 @@ Shader "PathTracing/StandardGlass"
             [shader("closesthit")]
             void ClosestHitMain(inout RayPayload payload : SV_RayPayload, AttributeData attribs : SV_IntersectionAttributes)
             {
-                if (payload.bounceIndexTransparent == g_BounceCountTransparent)
+                if (payload.GetBounceIndexTransparent() == g_MaxBounceCountTransparent)
                 {
-                    payload.bounceIndexTransparent = -1;
+                    payload.Terminate();
                     return;
                 }
 
@@ -171,9 +171,9 @@ Shader "PathTracing/StandardGlass"
                 bool   isReflected;
                 if (!SampleGlassGGX(WorldRayDirection(), hit.worldNormal, etaI, etaT, alpha, payload.rngState, L, weight, isReflected))
                 {
-                    payload.albedo                 = float3(0, 0, 0);
-                    payload.emission               = float3(0, 0, 0);
-                    payload.bounceIndexTransparent = -1;
+                    payload.albedo = float3(0, 0, 0);
+                    payload.emission = float3(0, 0, 0);
+                    payload.Terminate();
                     return;
                 }
 
@@ -183,11 +183,11 @@ Shader "PathTracing/StandardGlass"
 
                 float pushSign = isReflected ? 1.0 : -1.0;
 
-                payload.albedo                 = weight * absorption;
-                payload.emission               = float3(0, 0, 0);
-                payload.bounceIndexTransparent = payload.bounceIndexTransparent + 1;
-                payload.bounceRayOrigin        = hit.worldPosition + pushSign * K_RAY_ORIGIN_PUSH_OFF * hit.worldNormal;
-                payload.bounceRayDirection     = L;
+                payload.albedo = weight * absorption;
+                payload.emission = float3(0, 0, 0);
+                payload.bounceRayOrigin = hit.worldPosition + pushSign * K_RAY_ORIGIN_PUSH_OFF * hit.worldNormal;
+                payload.bounceRayDirection = L;
+				payload.IncrementBounceIndexTransparent();
             }
 
             ENDHLSL

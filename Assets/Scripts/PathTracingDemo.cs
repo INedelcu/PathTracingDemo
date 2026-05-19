@@ -144,8 +144,10 @@ public class PathTracingDemo : MonoBehaviour
 
         rayTracingShader.SetShaderPass("PathTracing");
 
-        Shader.SetGlobalInt(Shader.PropertyToID("g_BounceCountOpaque"), (int)bounceCountOpaque);
-        Shader.SetGlobalInt(Shader.PropertyToID("g_BounceCountTransparent"), (int)bounceCountTransparent);
+        // Cap at 254 because RayPayload.bounceIndices packs each counter into a single byte
+        // and reserves 0xff as the terminated-path sentinel.
+        Shader.SetGlobalInt(Shader.PropertyToID("g_MaxBounceCountOpaque"), (int)System.Math.Min(bounceCountOpaque, 254u));
+        Shader.SetGlobalInt(Shader.PropertyToID("g_MaxBounceCountTransparent"), (int)System.Math.Min(bounceCountTransparent, 254u));
 
         // Input
         rayTracingShader.SetAccelerationStructure(Shader.PropertyToID("g_AccelStruct"), rayTracingAccelerationStructure);

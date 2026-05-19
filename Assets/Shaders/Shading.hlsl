@@ -43,7 +43,7 @@ void ShadeOpaqueSurface(inout RayPayload payload, in SurfaceHit hit, in Material
         {
             payload.albedo = float3(0, 0, 0);
             payload.emission = mat.emission;
-            payload.bounceIndexOpaque = -1;
+            payload.Terminate();
             return;
         }
         weight /= specularChance;
@@ -57,7 +57,7 @@ void ShadeOpaqueSurface(inout RayPayload payload, in SurfaceHit hit, in Material
 
     payload.albedo = weight;
     payload.emission = mat.emission;
-    payload.bounceIndexOpaque = payload.bounceIndexOpaque + 1;
+    payload.IncrementBounceIndexOpaque();
     payload.bounceRayOrigin = hit.worldPosition + K_RAY_ORIGIN_PUSH_OFF * hit.worldFaceNormal;
     payload.bounceRayDirection = L;
 }
