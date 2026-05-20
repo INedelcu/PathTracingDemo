@@ -154,7 +154,7 @@ Shader "PathTracing/StandardGlass"
             [shader("closesthit")]
             void ClosestHitMain(inout RayPayload payload : SV_RayPayload, AttributeData attribs : SV_IntersectionAttributes)
             {
-                if (payload.GetBounceIndexTransparent() == g_MaxBounceCountTransparent)
+                if (payload.GetBounceIndexTransparent() >= g_MaxBounceCountTransparent)
                 {
                     payload.Terminate();
                     return;

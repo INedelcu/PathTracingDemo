@@ -201,7 +201,7 @@ Shader "PathTracing/Standard"
             [shader("closesthit")]
             void ClosestHitMain(inout RayPayload payload : SV_RayPayload, AttributeData attribs : SV_IntersectionAttributes)
             {
-                if (payload.GetBounceIndexOpaque() == g_MaxBounceCountOpaque)
+                if (payload.GetBounceIndexOpaque() >= g_MaxBounceCountOpaque)
                 {
                     payload.Terminate();
                     return;
