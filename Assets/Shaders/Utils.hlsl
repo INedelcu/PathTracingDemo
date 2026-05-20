@@ -1,12 +1,16 @@
 #ifndef UTILS_HLSL
 #define UTILS_HLSL
 
+#include "RayPayload.hlsl"
+
 #define K_PI                    3.1415926535f
 #define K_HALF_PI               1.5707963267f
 #define K_QUARTER_PI            0.7853981633f
 #define K_TWO_PI                6.283185307f
 #define K_T_MAX                 10000
 #define K_RAY_ORIGIN_PUSH_OFF   0.002
+
+#define ENABLE_RUSSIAN_ROULETTE 1
 
 uint WangHash(inout uint seed)
 {
@@ -82,16 +86,22 @@ float Luminance(float3 c)
 }
 
 // Returns true if the path should terminate. On survival, scales throughput by 1 / survivalProbability.
-bool RussianRouletteTerminate(inout float3 throughput, inout uint rngState)
+bool RussianRouletteTerminate(inout float3 throughput, inout RayPayload rayPayload)
 {
+#if ENABLE_RUSSIAN_ROULETTE
+    // Skip RR for the first few bounces so the early path, which carries most of the light, is never terminated and keeps its variance low.
+    if (rayPayload.GetBounceIndexTotal() < 2)
+        return false;
+
     // Don't let the survival probability be too low, otherwise we get fireflies (1 / p blowup).
     float survivalProbability = clamp(max(throughput.r, max(throughput.g, throughput.b)), 0.05, 0.95);
 
     // Dark colors have higher chance to terminate the path early.
-    if (survivalProbability < RandomFloat01(rngState))
+    if (survivalProbability < RandomFloat01(rayPayload.rngState))
         return true;
 
     throughput *= 1 / survivalProbability;
+#endif
     return false;
 }
 

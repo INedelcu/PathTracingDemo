@@ -171,7 +171,7 @@ Shader "PathTracing/StandardGlass"
                 bool   isReflected;
                 if (!SampleGlassGGX(WorldRayDirection(), hit.worldNormal, etaI, etaT, alpha, payload.rngState, L, weight, isReflected))
                 {
-                    payload.albedo = float3(0, 0, 0);
+                    payload.weight = float3(0, 0, 0);
                     payload.emission = float3(0, 0, 0);
                     payload.Terminate();
                     return;
@@ -183,7 +183,7 @@ Shader "PathTracing/StandardGlass"
 
                 float pushSign = isReflected ? 1.0 : -1.0;
 
-                payload.albedo = weight * absorption;
+                payload.weight = weight * absorption;
                 payload.emission = float3(0, 0, 0);
                 payload.bounceRayOrigin = hit.worldPosition + pushSign * K_RAY_ORIGIN_PUSH_OFF * hit.worldNormal;
                 payload.bounceRayDirection = L;

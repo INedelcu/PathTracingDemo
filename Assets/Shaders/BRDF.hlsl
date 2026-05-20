@@ -63,6 +63,44 @@ float3 SampleGGXVNDF(float3 Ve, float alpha, float u1, float u2)
     return normalize(float3(alpha * Nh.x, alpha * Nh.y, max(0.0, Nh.z)));
 }
 
+// GGX normal distribution. Trowbridge & Reitz 1975, Walter 2007.
+float D_GGX(float NdotH, float alpha)
+{
+    float a2 = alpha * alpha;
+    float t = NdotH * NdotH * (a2 - 1.0) + 1.0;
+    return a2 / max(K_PI * t * t, 1e-7);
+}
+
+// GGX-Smith specular BRDF evaluated at a fixed L direction, multiplied by
+// cos(theta_l). Used by next event estimation where L is the direction to a
+// light rather than a sampled direction.
+//   f_r         = D * G2 * F / (4 * NdotV * NdotL)
+//   f_r * NdotL = D * G2 * F / (4 * NdotV)
+float3 EvaluateSpecularGGX(float3 V, float3 L, float3 N, float3 F0, float alpha)
+{
+    float NdotL = dot(N, L);
+    float NdotV = dot(N, V);
+    if (NdotL <= 0.0 || NdotV <= 0.0)
+        return float3(0, 0, 0);
+
+    float3 H     = normalize(V + L);
+    float  NdotH = saturate(dot(N, H));
+    float  VdotH = saturate(dot(V, H));
+
+    float  D  = D_GGX(NdotH, alpha);
+    float  G2 = SmithG2_GGX_HeightCorrelated(NdotL, NdotV, alpha);
+    float3 F  = FresnelSchlick(F0, VdotH);
+    return F * (D * G2 / max(4.0 * NdotV, 1e-7));
+}
+
+// Lambert BRDF * cos(theta_l). The albedo is the diffuse albedo (already
+// tinted by (1 - F0) when the caller does energy compensation).
+float3 EvaluateDiffuseLambert(float3 albedo, float3 N, float3 L)
+{
+    float NdotL = saturate(dot(N, L));
+    return albedo * (NdotL / K_PI);
+}
+
 // Sample the GGX-Smith specular lobe with VNDF importance sampling.
 // V:   outgoing direction in world space (toward the camera).
 // N:   shading normal in world space.
@@ -109,7 +147,10 @@ bool SampleSpecularGGX(float3 V, float3 N, float3 F0, float alpha, inout uint rn
 // Methods for Topography Simulation", PhD thesis, TU Wien, §5.3.4, eq. (5.53).
 void SampleDiffuseLambert(float3 N, float3 albedo, inout uint rngState, out float3 L, out float3 weight)
 {
-    L = normalize(N + RandomUnitVector(rngState));
+    // Fall back to L = N when the random vector is near antiparallel to N, so
+    // normalize doesn't hit 0/0 and produce NaNs that the accumulator locks in.
+    float3 s = N + RandomUnitVector(rngState);
+    L = dot(s, s) < 1e-6 ? N : normalize(s);
     weight = albedo;
 }
 

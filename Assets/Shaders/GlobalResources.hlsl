@@ -8,4 +8,10 @@ RaytracingAccelerationStructure g_AccelStruct : register(t0, space1);
 uint g_MaxBounceCountOpaque;
 uint g_MaxBounceCountTransparent;
 
+// Included after g_AccelStruct so Lights.hlsl helpers (TraceShadowRay) can reference it.
+#include "Lights.hlsl"
+
+StructuredBuffer<Light> g_Lights : register(t1, space1);
+uint                    g_LightCount;
+
 #endif // GLOBAL_RESOURCES_H

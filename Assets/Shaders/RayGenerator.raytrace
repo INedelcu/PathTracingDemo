@@ -4,9 +4,9 @@
 #include "Utils.hlsl"
 #include "RayPayload.hlsl"
 
-#define ENABLE_RUSSIAN_ROULETTE 1
-
-#pragma max_recursion_depth 1
+// Depth 2 covers the primary TraceRay plus the next event estimation
+// shadow ray issued from the closest hit shader.
+#pragma max_recursion_depth 2
 
 // Input
 float                           g_Zoom;
@@ -44,7 +44,7 @@ void MainRayGenShader()
     // Rotate the ray from view space to world space.
     float3 rayDirection = mul((float3x3)unity_CameraToWorld, viewDirection);
 
-    uint missShaderIndex = 0;
+    const uint missShaderIndex = 0;
 
     RayDesc ray;
     ray.Origin      = _WorldSpaceCameraPos;
@@ -52,40 +52,36 @@ void MainRayGenShader()
     ray.TMin        = 0;
     ray.TMax        = K_T_MAX;
 
-    RayPayload payload;
-	payload.Init(rngState);
+    RayPayload rayPayload;
+	rayPayload.Init(rngState);
 
     float3 radiance = float3(0, 0, 0);
     float3 throughput = float3(1, 1, 1);
 
-    // Total bounce count also doubles as the infinite-loop safety net for when shaders have
-    // compilation errors and don't increase the bounce index.
     do
     {
-        TraceRay(g_AccelStruct, 0, 0xFF, 0, 1, missShaderIndex, ray, payload);
+        TraceRay(g_AccelStruct, 0, 0xFF, 0, 1, missShaderIndex, ray, rayPayload);
 
-        radiance += payload.emission * throughput;
+        // rayPayload.emission carries both the surface emission and the single sample
+        // direct lighting contribution traced from the closest hit shader.
+        radiance += rayPayload.emission * throughput;
 
-		if (payload.IsTerminated())
+		if (rayPayload.IsTerminated())
             break;
 
-        throughput *= payload.albedo;
+        throughput *= rayPayload.weight;
 
-#if ENABLE_RUSSIAN_ROULETTE
-		// Skip RR for the first few bounces so the early path, which carries most of the light, is never terminated and keeps its variance low.
-		if (payload.GetBounceIndexTotal() >= 2)
-		{
-			if (RussianRouletteTerminate(throughput, payload.rngState))
-				break;
-		}
-#endif
+		if (RussianRouletteTerminate(throughput, rayPayload))
+			break;
 
-        ray.Origin      = payload.bounceRayOrigin;
-        ray.Direction   = payload.bounceRayDirection;
+        ray.Origin      = rayPayload.bounceRayOrigin;
+        ray.Direction   = rayPayload.bounceRayDirection;
 
-        payload.IncrementBounceIndexTotal();
+        rayPayload.IncrementBounceIndexTotal();
     }
-    while (payload.GetBounceIndexTotal() < 1000);
+    while (rayPayload.GetBounceIndexTotal() < 1000);
+	// Total bounce count also doubles as the infinite-loop safety net for when shaders have
+    // compilation errors and don't increase the bounce index (the 1000 value in the while loop is arbitrary).
 
     float3 prevRadiance = g_Radiance[launchIndex].xyz;
 
@@ -95,8 +91,17 @@ void MainRayGenShader()
 }
 
 [shader("miss")]
-void MainMissShader0(inout RayPayload payload : SV_RayPayload)
+void MainMissShader(inout RayPayload payload : SV_RayPayload)
 {
-    payload.emission                = g_EnvTex.SampleLevel(sampler_g_EnvTex, WorldRayDirection(), 0).xyz;
+    payload.emission = g_EnvTex.SampleLevel(sampler_g_EnvTex, WorldRayDirection(), 0).xyz;
     payload.Terminate();
+}
+
+// Shadow ray miss: nothing was hit between the surface and the light, so the
+// shading point is lit. Closest hit is skipped via RAY_FLAG_SKIP_CLOSEST_HIT_SHADER
+// in the TraceRay call, so any geometry hit is treated as a fully opaque occluder.
+[shader("miss")]
+void ShadowMissShader(inout ShadowRayPayload payload : SV_RayPayload)
+{
+    payload.visible = 1;
 }
