@@ -38,8 +38,8 @@ Unity lights placed in the scene are sampled with next event estimation (NEE): a
 
 Supported types:
 
-* **Directional** — Unity `Light` components with `Type = Directional`, with color `light.color.linear * light.intensity`. It is sampled using a cone for soft penumbra shadows, or set the constant to 0 for a pure delta light with sharp shadows.
-* **Point** — Unity `Light` components with `Type = Point`, with color `light.color.linear * light.intensity` treated as luminous intensity.
+* **Directional** — Unity `Light` components with `Type = Directional`, with color `light.color.linear * light.intensity`. It is sampled using a cone for soft penumbra shadows, or set the `K_DIRECTIONAL_ANGULAR_DIAMETER` define to 0 for a pure delta light with sharp shadows.
+* **Point** — Unity `Light` components with `Type = Point`, with color `light.color.linear * light.intensity`.
 
 ## References
 
