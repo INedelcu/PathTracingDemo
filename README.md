@@ -1,6 +1,6 @@
 # Path Tracing Demo
 
-This demo implements a Monte Carlo Path Tracing technique using hardware accelerated ray tracing support in Unity. There is no rasterization based rendering in the demo and a render pipeline is not used (the Camera doesn't render any geometry).
+This demo implements a unidirectional Monte Carlo Path Tracing technique using hardware accelerated ray tracing support in Unity. There is no rasterization based rendering in the demo and a render pipeline is not used (the Camera doesn't render any geometry).
 
 <img src="Images/CornellBox.png" width="1280">
 
@@ -28,18 +28,18 @@ This demo implements a Monte Carlo Path Tracing technique using hardware acceler
 
 When in Play Mode, hold right mouse button down and use WASD keys to navigate through the scene. Convergence is reset when the view changes.
 
+## Materials
+
+Only materials derived from `PathTracingStandard.shader` and `PathTracingStandardGlass.shader` are supported by the path tracer. These are the only shaders that provide a `RayTracing` pass;
+
 ## Direct lighting
 
-Analytic lights placed in the scene are sampled with next event estimation (NEE): at every opaque surface hit one light is picked uniformly at random, the BRDF is evaluated in its direction, and a single shadow ray tests visibility. The contribution `BRDF · cos(θ) · L_e · visibility / pickPdf` is added to the path radiance. This converges much faster than relying on the environment cubemap miss alone, especially for small or concentrated light sources.
-
-The shadow ray is fired directly from the closest hit shader and the NEE contribution is folded into `payload.emission`. The ray gen integrator picks it up as part of the standard `radiance += emission * throughput` accumulation, then dispatches the BSDF sampled continuation ray on the next iteration. This requires `max_recursion_depth = 2` (primary ray plus one shadow ray); the shadow ray uses `RAY_FLAG_SKIP_CLOSEST_HIT_SHADER` so a geometry hit cannot recurse back into a closest hit shader and stay within that bound.
+Unity lights placed in the scene are sampled with next event estimation (NEE): at every opaque surface hit one light is picked uniformly at random, the BRDF is evaluated in its direction, and a single shadow ray tests visibility.
 
 Supported types:
 
-* **Directional** — Unity `Light` components with `Type = Directional`. Color is `light.color.linear * light.intensity`. The light is treated as a finite extent sun disc sampled with a uniform cone (full angular diameter `K_DIRECTIONAL_ANGULAR_DIAMETER`, hardcoded in `Lights.hlsl` to 0.5°), which produces soft penumbra shadows. Set the constant to 0 for a pure delta light with hard shadows.
-* **Point** — Unity `Light` components with `Type = Point`. Color is `light.color.linear * light.intensity`, treated as luminous intensity. Range attenuation uses the smooth windowed inverse square from Lagarde 2014: `attenuation = (min(1/d, 1/threshold) · saturate(1 − (d²/range²)²))²`. The 1 cm clamp avoids the singularity right next to the bulb; the squared window smoothly fades to zero at `light.range`. Treated as a delta point, so shadows are sharp.
-
-Shadow rays use `RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER`, so glass casts opaque shadows. The `PathTracing/StandardGlass` material does not perform NEE: for a delta light through a delta-ish transmissive surface the contribution is effectively zero.
+* **Directional** — Unity `Light` components with `Type = Directional`, with color `light.color.linear * light.intensity`. It is sampled using a cone for soft penumbra shadows, or set the constant to 0 for a pure delta light with sharp shadows.
+* **Point** — Unity `Light` components with `Type = Point`, with color `light.color.linear * light.intensity` treated as luminous intensity.
 
 ## References
 
