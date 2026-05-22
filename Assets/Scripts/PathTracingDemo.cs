@@ -27,14 +27,7 @@ public class PathTracingDemo : MonoBehaviour
     private uint cameraWidth = 0;
     private uint cameraHeight = 0;
 
-    private int convergenceStep = 0;
-
-    private Matrix4x4 prevCameraMatrix;
-    private uint prevBounceCountOpaque = 0;
-    private uint prevBounceCountTransparent = 0;
-    private bool prevDebugSingleBounce = false;
-    private uint prevDebugBounceIndex = 0;
-    private int  prevLightHash = 0;
+    private readonly ConvergenceStateTracker convergenceTracker = new ConvergenceStateTracker();
 
     private RenderTexture rayTracingOutput = null;
 
@@ -67,11 +60,40 @@ public class PathTracingDemo : MonoBehaviour
             RayTracingAccelerationStructure.Settings settings = new RayTracingAccelerationStructure.Settings()
             {
                 rayTracingModeMask = RayTracingAccelerationStructure.RayTracingModeMask.Everything,
-                managementMode = RayTracingAccelerationStructure.ManagementMode.Automatic,
+                managementMode = RayTracingAccelerationStructure.ManagementMode.Manual,
                 layerMask = 255
             };
             rayTracingAccelerationStructure = new RayTracingAccelerationStructure(settings);
         }
+    }
+
+    private RayTracingInstanceCullingResults BuildAccelerationStructure()
+    {
+        RayTracingInstanceCullingConfig cullingConfig = new RayTracingInstanceCullingConfig();
+
+        cullingConfig.flags = RayTracingInstanceCullingFlags.ComputeMaterialsCRC;
+
+        cullingConfig.subMeshFlagsConfig.opaqueMaterials      = RayTracingSubMeshFlags.Enabled | RayTracingSubMeshFlags.ClosestHitOnly;
+        cullingConfig.subMeshFlagsConfig.transparentMaterials = RayTracingSubMeshFlags.Enabled | RayTracingSubMeshFlags.ClosestHitOnly;
+        cullingConfig.subMeshFlagsConfig.alphaTestedMaterials = RayTracingSubMeshFlags.Enabled | RayTracingSubMeshFlags.ClosestHitOnly;
+
+        cullingConfig.triangleCullingConfig.forceDoubleSided = true;
+
+        RayTracingInstanceCullingTest pathTracingTest = new RayTracingInstanceCullingTest();
+        pathTracingTest.allowOpaqueMaterials      = true;
+        pathTracingTest.allowTransparentMaterials = true;
+        pathTracingTest.allowAlphaTestedMaterials = true;
+        pathTracingTest.layerMask                 = -1;
+        pathTracingTest.shadowCastingModeMask     = (1 << (int)ShadowCastingMode.Off) | (1 << (int)ShadowCastingMode.On) | (1 << (int)ShadowCastingMode.TwoSided);
+        pathTracingTest.instanceMask              = 0xFF;
+
+        cullingConfig.instanceTests = new RayTracingInstanceCullingTest[] { pathTracingTest };
+
+        rayTracingAccelerationStructure.ClearInstances();
+        RayTracingInstanceCullingResults cullingResult = rayTracingAccelerationStructure.CullInstances(ref cullingConfig);
+        rayTracingAccelerationStructure.Build();
+
+        return cullingResult;
     }
 
     private void ReleaseResources()
@@ -197,7 +219,7 @@ public class PathTracingDemo : MonoBehaviour
             cameraWidth = (uint)Camera.main.pixelWidth;
             cameraHeight = (uint)Camera.main.pixelHeight;
 
-            convergenceStep = 0;
+            convergenceTracker.Reset();
         }
     }
 
@@ -211,21 +233,12 @@ public class PathTracingDemo : MonoBehaviour
         ReleaseResources();
     }
 
-    private void OnEnable()
-    {
-        prevCameraMatrix = Camera.main.cameraToWorldMatrix;
-        prevBounceCountOpaque = bounceCountOpaque;
-        prevBounceCountTransparent = bounceCountTransparent;
-        prevDebugSingleBounce = debugSingleBounce;
-        prevDebugBounceIndex = debugBounceIndex;
-    }
-
     private void Update()
     {
         CreateResources();
 
         if (Input.GetKeyDown("space"))
-            convergenceStep = 0;
+            convergenceTracker.Reset();
     }
 
     [ImageEffectOpaque]
@@ -241,28 +254,13 @@ public class PathTracingDemo : MonoBehaviour
         if (rayTracingAccelerationStructure == null)
             return;
 
-        if (prevCameraMatrix != Camera.main.cameraToWorldMatrix)
-            convergenceStep = 0;
-
-        if (prevBounceCountOpaque != bounceCountOpaque)
-            convergenceStep = 0;
-
-        if (prevBounceCountTransparent != bounceCountTransparent)
-            convergenceStep = 0;
-
-        if (prevDebugSingleBounce != debugSingleBounce)
-            convergenceStep = 0;
-
-        if (debugSingleBounce && prevDebugBounceIndex != debugBounceIndex)
-            convergenceStep = 0;
-
         int lightCount = CollectLights();
         int lightHash = ComputeLightHash();
-        if (lightHash != prevLightHash)
-            convergenceStep = 0;
 
-        // Not really needed per frame if the scene is static.
-        rayTracingAccelerationStructure.Build();
+        RayTracingInstanceCullingResults cullingResult = BuildAccelerationStructure();
+        uint instanceCount = rayTracingAccelerationStructure.GetInstanceCount();
+
+        convergenceTracker.DetectInvalidation(Camera.main, bounceCountOpaque, bounceCountTransparent, debugSingleBounce, debugBounceIndex, lightHash, instanceCount, cullingResult);
 
         rayTracingShader.SetShaderPass("PathTracing");
 
@@ -277,7 +275,7 @@ public class PathTracingDemo : MonoBehaviour
         rayTracingShader.SetAccelerationStructure(Shader.PropertyToID("g_AccelStruct"), rayTracingAccelerationStructure);
         rayTracingShader.SetFloat(Shader.PropertyToID("g_Zoom"), Mathf.Tan(Mathf.Deg2Rad * Camera.main.fieldOfView * 0.5f));
         rayTracingShader.SetFloat(Shader.PropertyToID("g_AspectRatio"), cameraWidth / (float)cameraHeight);
-        rayTracingShader.SetInt(Shader.PropertyToID("g_ConvergenceStep"), convergenceStep);
+        rayTracingShader.SetInt(Shader.PropertyToID("g_ConvergenceStep"), convergenceTracker.Step);
         rayTracingShader.SetInt(Shader.PropertyToID("g_FrameIndex"), Time.frameCount);
         rayTracingShader.SetInt(Shader.PropertyToID("g_DebugBounceIndex"), (int)debugBounceIndex);
         rayTracingShader.SetTexture(Shader.PropertyToID("g_EnvTex"), envTexture);
@@ -294,13 +292,6 @@ public class PathTracingDemo : MonoBehaviour
 
         Graphics.Blit(rayTracingOutput, dest);
 
-        convergenceStep++;
-
-        prevCameraMatrix            = Camera.main.cameraToWorldMatrix;
-        prevBounceCountOpaque       = bounceCountOpaque;
-        prevBounceCountTransparent  = bounceCountTransparent;
-        prevDebugSingleBounce       = debugSingleBounce;
-        prevDebugBounceIndex        = debugBounceIndex;
-        prevLightHash               = lightHash;
+        convergenceTracker.Advance();
     }
 }
