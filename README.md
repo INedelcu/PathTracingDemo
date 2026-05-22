@@ -28,6 +28,10 @@ This demo implements a unidirectional Monte Carlo Path Tracing technique using h
 
 When in Play Mode, hold right mouse button down and use WASD keys to navigate through the scene. Convergence is reset when the view changes.
 
+Enable **Debug Single Bounce** on the inspector to isolate the radiance gathered at a single bounce; **Debug Bounce Index** selects which one, where 0 is the primary ray hit. Every other bounce contributes black, which is useful for inspecting how each bounce builds up the final image.
+
+<img src="Images/DebugBounceIndex.png" width="1280">
+
 ## Materials
 
 Only materials derived from `PathTracingStandard.shader` and `PathTracingStandardGlass.shader` are supported by the path tracer. These are the only shaders that provide a `RayTracing` pass;

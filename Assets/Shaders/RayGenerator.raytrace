@@ -4,15 +4,18 @@
 #include "Utils.hlsl"
 #include "RayPayload.hlsl"
 
-// Depth 2 covers the primary TraceRay plus the next event estimation
-// shadow ray issued from the closest hit shader.
+// Depth 2 covers the primary TraceRay plus the next event estimation shadow ray issued from the closest hit shader.
 #pragma max_recursion_depth 2
+
+// Debug variant that isolates the radiance gathered at a single bounce. Toggled from the PathTracingDemo inspector checkbox via the global keyword.
+#pragma multi_compile __ DEBUG_SINGLE_BOUNCE
 
 // Input
 float                           g_Zoom;
 float                           g_AspectRatio;
 uint                            g_ConvergenceStep;
 uint                            g_FrameIndex;
+int                             g_DebugBounceIndex;
 TextureCube<float4>             g_EnvTex;
 SamplerState                    sampler_g_EnvTex;
 
@@ -60,11 +63,18 @@ void MainRayGenShader()
 
     do
     {
+#ifdef DEBUG_SINGLE_BOUNCE
+        uint currentBounce = rayPayload.GetBounceIndexTotal();
+
         TraceRay(g_AccelStruct, 0, 0xFF, 0, 1, missShaderIndex, ray, rayPayload);
 
-        // rayPayload.emission carries both the surface emission and the single sample
-        // direct lighting contribution traced from the closest hit shader.
+        if (currentBounce == (uint)g_DebugBounceIndex)
+            radiance += rayPayload.emission * throughput;
+#else
+        TraceRay(g_AccelStruct, 0, 0xFF, 0, 1, missShaderIndex, ray, rayPayload);
+
         radiance += rayPayload.emission * throughput;
+#endif
 
 		if (rayPayload.IsTerminated())
             break;

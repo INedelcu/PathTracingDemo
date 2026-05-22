@@ -17,6 +17,13 @@ public class PathTracingDemo : MonoBehaviour
     [Range(1, 100)]
     public uint bounceCountTransparent = 8;
 
+    [Header("Debug")]
+    public bool debugSingleBounce = false;
+
+    [Range(0, 100)]
+    [Tooltip("When Debug Single Bounce is enabled, this selects which bounce to visualize. 0 is the primary ray hit (directly visible emission and direct lighting).")]
+    public uint debugBounceIndex = 0;
+
     private uint cameraWidth = 0;
     private uint cameraHeight = 0;
 
@@ -25,6 +32,8 @@ public class PathTracingDemo : MonoBehaviour
     private Matrix4x4 prevCameraMatrix;
     private uint prevBounceCountOpaque = 0;
     private uint prevBounceCountTransparent = 0;
+    private bool prevDebugSingleBounce = false;
+    private uint prevDebugBounceIndex = 0;
     private int  prevLightHash = 0;
 
     private RenderTexture rayTracingOutput = null;
@@ -207,6 +216,8 @@ public class PathTracingDemo : MonoBehaviour
         prevCameraMatrix = Camera.main.cameraToWorldMatrix;
         prevBounceCountOpaque = bounceCountOpaque;
         prevBounceCountTransparent = bounceCountTransparent;
+        prevDebugSingleBounce = debugSingleBounce;
+        prevDebugBounceIndex = debugBounceIndex;
     }
 
     private void Update()
@@ -239,6 +250,12 @@ public class PathTracingDemo : MonoBehaviour
         if (prevBounceCountTransparent != bounceCountTransparent)
             convergenceStep = 0;
 
+        if (prevDebugSingleBounce != debugSingleBounce)
+            convergenceStep = 0;
+
+        if (debugSingleBounce && prevDebugBounceIndex != debugBounceIndex)
+            convergenceStep = 0;
+
         int lightCount = CollectLights();
         int lightHash = ComputeLightHash();
         if (lightHash != prevLightHash)
@@ -262,7 +279,13 @@ public class PathTracingDemo : MonoBehaviour
         rayTracingShader.SetFloat(Shader.PropertyToID("g_AspectRatio"), cameraWidth / (float)cameraHeight);
         rayTracingShader.SetInt(Shader.PropertyToID("g_ConvergenceStep"), convergenceStep);
         rayTracingShader.SetInt(Shader.PropertyToID("g_FrameIndex"), Time.frameCount);
+        rayTracingShader.SetInt(Shader.PropertyToID("g_DebugBounceIndex"), (int)debugBounceIndex);
         rayTracingShader.SetTexture(Shader.PropertyToID("g_EnvTex"), envTexture);
+
+        if (debugSingleBounce)
+            Shader.EnableKeyword("DEBUG_SINGLE_BOUNCE");
+        else
+            Shader.DisableKeyword("DEBUG_SINGLE_BOUNCE");
 
         // Output
         rayTracingShader.SetTexture(Shader.PropertyToID("g_Radiance"), rayTracingOutput);
@@ -276,6 +299,8 @@ public class PathTracingDemo : MonoBehaviour
         prevCameraMatrix            = Camera.main.cameraToWorldMatrix;
         prevBounceCountOpaque       = bounceCountOpaque;
         prevBounceCountTransparent  = bounceCountTransparent;
+        prevDebugSingleBounce       = debugSingleBounce;
+        prevDebugBounceIndex        = debugBounceIndex;
         prevLightHash               = lightHash;
     }
 }
