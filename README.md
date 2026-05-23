@@ -14,7 +14,7 @@ This demo implements a unidirectional Monte Carlo path tracing technique using h
 
 * Windows 10 version 1809 and above.
 * Any NVIDIA GPU starting from GTX 1060 with 6 GB of VRAM. AMD 6000 series GPUs based on RDNA 2 and above will also run the demo.
-* Unity 6.0 and above.
+* Unity 6.3 and above.
 
 ## Recommendations
 
