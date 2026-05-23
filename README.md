@@ -1,6 +1,6 @@
 # Path Tracing Demo
 
-This demo implements a unidirectional Monte Carlo Path Tracing technique using hardware accelerated ray tracing support in Unity. There is no rasterization based rendering in the demo and a render pipeline is not used (the Camera doesn't render any geometry).
+This demo implements a unidirectional Monte Carlo path tracing technique using hardware accelerated ray tracing support in Unity. There is no rasterization based rendering in the demo and a render pipeline is not used (the Camera doesn't render any geometry).
 
 <img src="Images/CornellBox.png" width="1280">
 
@@ -19,7 +19,7 @@ This demo implements a unidirectional Monte Carlo Path Tracing technique using h
 ## Recommendations
 
 * Use **winver** in a command prompt to see exactly which Windows version you are using.
-* NVIDIA RTX 2000 or AMD Radeon 6000 series GPUs and above are recommended because they have hardware units dedicated for ray tracing. A GTX 1060 GPU was 10 to 15 times slower in tests because ray tracing support is emulated and runs entirely on compute units.
+* NVIDIA RTX 2000 or AMD Radeon 6000 series GPUs and above are recommended because they have hardware units dedicated to ray tracing. A GTX 1060 GPU was 10 to 15 times slower in tests because ray tracing support is emulated and runs entirely on compute units.
 * Alternatively use a tool like GPU-Z to check if your system supports ray tracing. The demo will print an error in the console window if ray tracing is not supported.
 
 ## Setup and Interaction
@@ -30,7 +30,7 @@ When in Play Mode, hold right mouse button down and use WASD keys to navigate th
 
 The image is built by progressively averaging samples across frames, so it converges only while the scene and view hold still. Anything that would change the result discards the accumulated radiance and restarts the average from the first sample. Convergence resets when:
 
-* any material property is edited - this only includes materials used by Renderers in the acceleration structure.
+* any material property is edited — this includes only materials used by Renderers in the acceleration structure;
 * an object is added, removed, or moved;
 * a light is added, removed, or changed (color, type, direction, range, or position);
 * the camera moves or rotates;
@@ -39,13 +39,13 @@ The image is built by progressively averaging samples across frames, so it conve
 * **Debug Single Bounce** is toggled, or **Debug Bounce Index** changes while it is enabled;
 * the render target is resized (the window or camera resolution changes).
 
-Enable **Debug Single Bounce** on the inspector to isolate the radiance gathered at a single bounce; **Debug Bounce Index** selects which one, where 0 is the primary ray hit. Every other bounce contributes black, which is useful for inspecting how each bounce builds up the final image.
+Enable **Debug Single Bounce** in the inspector to isolate the radiance gathered at a single bounce; **Debug Bounce Index** selects which one, where 0 is the primary ray hit. Every other bounce contributes black, which is useful for inspecting how each bounce builds up the final image.
 
 <img src="Images/DebugBounceIndex.png" width="1280">
 
 ## Materials
 
-Only materials derived from `PathTracingStandard.shader` and `PathTracingStandardGlass.shader` are supported by the path tracer. These are the only shaders that provide a `RayTracing` pass;
+Only materials derived from `PathTracingStandard.shader` and `PathTracingStandardGlass.shader` are supported by the path tracer. These are the only shaders that provide a `RayTracing` pass.
 
 ## Direct lighting
 
