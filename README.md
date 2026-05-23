@@ -26,7 +26,18 @@ This demo implements a unidirectional Monte Carlo Path Tracing technique using h
 
 <img src="Images/Settings.png" width="1280">
 
-When in Play Mode, hold right mouse button down and use WASD keys to navigate through the scene. Convergence is reset when the view changes.
+When in Play Mode, hold right mouse button down and use WASD keys to navigate through the scene.
+
+The image is built by progressively averaging samples across frames, so it converges only while the scene and view hold still. Anything that would change the result discards the accumulated radiance and restarts the average from the first sample. Convergence resets when:
+
+* any material property is edited - this only includes materials used by Renderers in the acceleration structure.
+* an object is added, removed, or moved;
+* a light is added, removed, or changed (color, type, direction, range, or position);
+* the camera moves or rotates;
+* Space is pressed (manual reset);
+* the opaque or transparent bounce count changes;
+* **Debug Single Bounce** is toggled, or **Debug Bounce Index** changes while it is enabled;
+* the render target is resized (the window or camera resolution changes).
 
 Enable **Debug Single Bounce** on the inspector to isolate the radiance gathered at a single bounce; **Debug Bounce Index** selects which one, where 0 is the primary ray hit. Every other bounce contributes black, which is useful for inspecting how each bounce builds up the final image.
 
