@@ -39,7 +39,7 @@ public class PathTracingDemo : MonoBehaviour
     {
         public Vector3 color;
         public uint    type;        // 0 = directional, 1 = point
-        public Vector3 direction;
+        public Vector3 direction;   // Directional only. Unit length (normalized in CollectLights).
         public float   range;
         public Vector3 position;
         public float   _pad0;
@@ -158,7 +158,7 @@ public class PathTracingDemo : MonoBehaviour
             {
                 case LightType.Directional:
                     data.type = 0;
-                    data.direction = light.transform.forward;
+                    data.direction = light.transform.forward.normalized;
                     SetPunctualColor(ref data, light);
                     break;
                 case LightType.Point:

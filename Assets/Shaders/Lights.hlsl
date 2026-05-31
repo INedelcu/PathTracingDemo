@@ -22,7 +22,7 @@ struct Light
 {
     float3 color;        // light.color.linear * light.intensity.
     uint   type;         // LIGHT_TYPE_*
-    float3 direction;    // Directional: forward direction the light travels along.
+    float3 direction;    // Directional: forward direction the light travels along. Unit length.
     float  range;        // Point only.
     float3 position;     // Point only.
     float  _pad0;
@@ -85,7 +85,7 @@ bool SampleLight(Light light, float3 worldPos, inout uint rngState, out float3 w
             // light.color because the cone solid angle Ω cancels:
             //   L_disc = E / Ω, pdf = 1 / Ω
             //   estimator = f * cos(θ) * L_disc / pdf = f * cos(θ) * E
-            float3 axis        = -normalize(light.direction);
+            float3 axis        = -light.direction;
             float  cosThetaMax = cos(K_DIRECTIONAL_ANGULAR_DIAMETER * 0.5);
             float  u1          = RandomFloat01(rngState);
             float  u2          = RandomFloat01(rngState);
