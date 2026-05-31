@@ -47,6 +47,13 @@ Enable **Debug Single Bounce** in the inspector to isolate the radiance gathered
 
 Only materials derived from `PathTracingStandard.shader` and `PathTracingStandardGlass.shader` are supported by the path tracer. These are the only shaders that provide a `RayTracing` pass.
 
+`PathTracingStandard.shader` exposes a **Surface Type** setting in the material inspector:
+
+* **Opaque** — every triangle is a solid occluder. The acceleration structure marks these submeshes closest hit only, so no any hit shader runs and traversal is at its fastest.
+* **Cutout** — the albedo texture alpha is compared against the **Alpha Cutoff** threshold per pixel. Texels below the cutoff are skipped, leaving a hard edged hole; texels at or above it shade as opaque. This drives the `ALPHATEST_ON` keyword, which enables an any hit shader that samples the albedo alpha and calls `IgnoreHit()` below the cutoff. The cutout applies to camera rays and shadow rays alike, so foliage and fences cast correctly perforated shadows.
+
+A **Double Sided** toggle controls back-face culling. When off, the surface is single sided: rays that strike a back face pass straight through, matching `Cull Back` in the editor preview. When on, the toggle enables the `DOUBLE_SIDED_ON` keyword, which `RayTracingInstanceTriangleCullingConfig.optionalDoubleSidedShaderKeywords` registers as double sided, so the acceleration structure traces both faces and the closest hit shader flips the shading normal on back-face hits. Enable it for thin geometry such as leaves and cloth that needs to be lit from either side.
+
 ## Direct lighting
 
 Unity lights placed in the scene are sampled with next event estimation (NEE): at every opaque surface hit one light is picked uniformly at random, the BRDF is evaluated in its direction, and a single shadow ray tests visibility.

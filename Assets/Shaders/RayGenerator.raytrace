@@ -71,15 +71,17 @@ void MainRayGenShader()
 
     do
     {
+		uint rayFlags = RAY_FLAG_CULL_BACK_FACING_TRIANGLES;
+
 #ifdef DEBUG_SINGLE_BOUNCE
         uint currentBounce = rayPayload.GetBounceIndexTotal();
 
-        TraceRay(g_AccelStruct, 0, 0xFF, 0, 1, missShaderIndex, ray, rayPayload);
+        TraceRay(g_AccelStruct, rayFlags, 0xFF, 0, 1, missShaderIndex, ray, rayPayload);
 
         if (currentBounce == (uint)g_DebugBounceIndex)
             radiance += rayPayload.emission * throughput;
 #else
-        TraceRay(g_AccelStruct, 0, 0xFF, 0, 1, missShaderIndex, ray, rayPayload);
+        TraceRay(g_AccelStruct, rayFlags, 0xFF, 0, 1, missShaderIndex, ray, rayPayload);
 
         radiance += rayPayload.emission * throughput;
 #endif

@@ -34,9 +34,12 @@ struct ShadowRayPayload
 };
 
 // Trace a shadow ray and return 1 if the target light is unoccluded, 0 otherwise.
-// RAY_FLAG_SKIP_CLOSEST_HIT_SHADER treats every geometry hit as a fully opaque
-// occluder, so the shadow ray cannot recurse back into a closest hit shader and
-// counts as one extra level of recursion against max_recursion_depth.
+// RAY_FLAG_SKIP_CLOSEST_HIT_SHADER means the ray never recurses back into a
+// closest hit shader, so any geometry it accepts counts as a solid occluder and
+// the trace costs one extra level of recursion against max_recursion_depth. The
+// any hit shader still runs, so cutout texels below _Cutoff stay transparent to
+// shadows. RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH ends traversal at the first
+// accepted hit, which is all an occlusion test needs.
 float TraceShadowRay(float3 origin, float3 direction, float distance)
 {
     RayDesc shadowRay;
@@ -51,7 +54,7 @@ float TraceShadowRay(float3 origin, float3 direction, float distance)
     const uint shadowRayMissShaderIndex = 1;
 
     TraceRay(g_AccelStruct,
-             RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER,
+             RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_CULL_BACK_FACING_TRIANGLES,
              0xFF, 0, 1, shadowRayMissShaderIndex, shadowRay, shadowPayload);
 
     return (float)shadowPayload.visible;

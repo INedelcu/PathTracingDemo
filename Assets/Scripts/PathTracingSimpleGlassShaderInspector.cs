@@ -50,11 +50,12 @@ public class PathTracingSimpleGlassShaderGUI : ShaderGUI
 
     void SetMaterialKeywords(Material m)
     {
-        SetKeyword(m, "_FLAT_SHADING", (flatShadingState.floatValue != 0.0f));
+        SetKeyword(m, "FLAT_SHADING_ON", (flatShadingState.floatValue != 0.0f));
+        SetKeyword(m, "DOUBLE_SIDED_ON", true);
     }
 
     void MaterialChanged(Material material)
-    {   
+    {
         SetMaterialKeywords(material);
     }
 
@@ -62,7 +63,7 @@ public class PathTracingSimpleGlassShaderGUI : ShaderGUI
     {
         EditorGUIUtility.labelWidth = 0f;
 
-        bool flatShading = false;        
+        bool flatShading = false;
 
         EditorGUI.BeginChangeCheck();
         {
@@ -72,8 +73,8 @@ public class PathTracingSimpleGlassShaderGUI : ShaderGUI
 
             m_MaterialEditor.ColorProperty(colorValue, "Color");
 
-            m_MaterialEditor.RangeProperty(extinctionValue, "Extinction Coefficient");                        
-            
+            m_MaterialEditor.RangeProperty(extinctionValue, "Extinction Coefficient");
+
             m_MaterialEditor.RangeProperty(roughnessValue, "Roughness");
 
             EditorGUI.showMixedValue = flatShadingState.hasMixedValue;
@@ -86,7 +87,7 @@ public class PathTracingSimpleGlassShaderGUI : ShaderGUI
         if (EditorGUI.EndChangeCheck())
         {
             flatShadingState.floatValue = flatShading ? 1.0f : 0.0f;
-    
+
             MaterialChanged(material);
         }
     }

@@ -73,11 +73,27 @@ public class PathTracingDemo : MonoBehaviour
 
         cullingConfig.flags = RayTracingInstanceCullingFlags.ComputeMaterialsCRC;
 
-        cullingConfig.subMeshFlagsConfig.opaqueMaterials      = RayTracingSubMeshFlags.Enabled | RayTracingSubMeshFlags.ClosestHitOnly;
-        cullingConfig.subMeshFlagsConfig.transparentMaterials = RayTracingSubMeshFlags.Enabled | RayTracingSubMeshFlags.ClosestHitOnly;
-        cullingConfig.subMeshFlagsConfig.alphaTestedMaterials = RayTracingSubMeshFlags.Enabled | RayTracingSubMeshFlags.ClosestHitOnly;
+        // Disable anyhit shaders for opaque geometries for best ray tracing performance.
+        cullingConfig.subMeshFlagsConfig.opaqueMaterials = RayTracingSubMeshFlags.Enabled | RayTracingSubMeshFlags.ClosestHitOnly;
 
-        cullingConfig.triangleCullingConfig.forceDoubleSided = true;
+        // Disable transparent geometries. We don't have a definition for what a "transparent" material is, so we conservatively disable all of them.
+        cullingConfig.subMeshFlagsConfig.transparentMaterials = RayTracingSubMeshFlags.Disabled;
+
+        // Enable anyhit shaders for alpha-tested / cutout geometries.
+        cullingConfig.subMeshFlagsConfig.alphaTestedMaterials = RayTracingSubMeshFlags.Enabled;
+
+        RayTracingInstanceMaterialConfig alphaTestedMaterialsConfig = new RayTracingInstanceMaterialConfig()
+        {
+            optionalShaderKeywords = new string[1] { "ALPHATEST_ON" },
+            renderQueueLowerBound = (int)UnityEngine.Rendering.RenderQueue.AlphaTest,
+            renderQueueUpperBound = (int)UnityEngine.Rendering.RenderQueue.GeometryLast
+        };
+
+        cullingConfig.alphaTestedMaterialConfig = alphaTestedMaterialsConfig;
+
+        cullingConfig.triangleCullingConfig.forceDoubleSided = false;
+        cullingConfig.triangleCullingConfig.frontTriangleCounterClockwise = false;
+        cullingConfig.triangleCullingConfig.optionalDoubleSidedShaderKeywords = new string[1] { "DOUBLE_SIDED_ON" };
 
         RayTracingInstanceCullingTest pathTracingTest = new RayTracingInstanceCullingTest();
         pathTracingTest.allowOpaqueMaterials      = true;
@@ -252,7 +268,10 @@ public class PathTracingDemo : MonoBehaviour
         }
 
         if (rayTracingAccelerationStructure == null)
+        {
+            Graphics.Blit(src, dest);
             return;
+        }
 
         int lightCount = CollectLights();
         int lightHash = ComputeLightHash();

@@ -75,7 +75,8 @@ Shader "PathTracing/StandardGlass"
 
             #pragma raytracing main_hit_group
 
-            #pragma shader_feature _FLAT_SHADING
+            #pragma shader_feature_raytracing FLAT_SHADING_ON
+			#pragma shader_feature_raytracing DOUBLE_SIDED_ON
 
             float4 _Color;
             float _IOR;
@@ -137,7 +138,7 @@ Shader "PathTracing/StandardGlass"
                 SurfaceHit s;
                 s.isFrontFace = HitKind() == HIT_KIND_TRIANGLE_FRONT_FACE;
 
-#if _FLAT_SHADING
+#if FLAT_SHADING_ON
                 float3 e0 = v1.position - v0.position;
                 float3 e1 = v2.position - v0.position;
                 float3 localNormal = normalize(cross(e0, e1));

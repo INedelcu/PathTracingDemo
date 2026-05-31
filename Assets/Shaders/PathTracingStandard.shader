@@ -5,6 +5,8 @@ Shader "PathTracing/Standard"
         _Color("Color", Color) = (1, 1, 1, 1)
         _MainTex("Albedo", 2D) = "white" {}
 
+        _Cutoff("Alpha Cutoff", Range(0.0, 1.0)) = 0.5
+
         [Toggle]_Emission("Emission", float) = 0
 
          [HDR]_EmissionColor("EmissionColor", Color) = (0,0,0)
@@ -17,6 +19,12 @@ Shader "PathTracing/Standard"
         [Gamma] _Metallic("Metallic", Range(0.0, 1.0)) = 0.0
 
         _IOR("Index of Refraction", Range(1.0, 2.8)) = 1.5
+
+        [HideInInspector] _SurfaceType("__type", Integer) = 0
+        [HideInInspector] _SrcBlend("__src", Float) = 1
+        [HideInInspector] _DstBlend("__dst", Float) = 0
+        [HideInInspector] _ZWrite("__zw", Float) = 1
+        [HideInInspector] _Cull("__cull", Float) = 2
     }
 
     SubShader
@@ -24,8 +32,10 @@ Shader "PathTracing/Standard"
         Tags { "RenderType" = "Opaque" "DisableBatching" = "True"}
         LOD 100
 
-         Pass
+        Pass
         {
+            Cull [_Cull]
+
             CGPROGRAM
 
             #pragma vertex vert
@@ -33,7 +43,8 @@ Shader "PathTracing/Standard"
 
             #include "UnityCG.cginc"
 
-            #pragma shader_feature _EMISSION
+            #pragma shader_feature_local EMISSION_ON
+			#pragma shader_feature_local ALPHATEST_ON
 
             struct appdata
             {
@@ -45,7 +56,7 @@ Shader "PathTracing/Standard"
             struct v2f
             {
                 float2 uv0 : TEXCOORD0;
-                #if _EMISSION
+                #if EMISSION_ON
                 float2 uv1 : TEXCOORD1;
                 #endif
                 float3 normal : NORMAL;
@@ -55,6 +66,8 @@ Shader "PathTracing/Standard"
             sampler2D _MainTex;
             float4 _MainTex_ST;
             float4 _Color;
+
+            float _Cutoff;
 
             sampler2D _EmissionTex;
             float4 _EmissionTex_ST;
@@ -66,7 +79,7 @@ Shader "PathTracing/Standard"
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.normal = UnityObjectToWorldNormal(v.normal);
                 o.uv0 = TRANSFORM_TEX(v.uv, _MainTex);
-                #if _EMISSION
+                #if EMISSION_ON
                     o.uv1 = TRANSFORM_TEX(v.uv, _EmissionTex);
                 #endif
                 return o;
@@ -74,8 +87,12 @@ Shader "PathTracing/Standard"
 
             fixed4 frag(v2f i) : SV_Target
             {
-                fixed4 col = tex2D(_MainTex, i.uv0) * _Color * saturate(saturate(dot(float3(-0.4, -1, -0.5), i.normal)) + saturate(dot(float3(0.4, 1, 0.5), i.normal)));
-                #if _EMISSION
+                fixed4 albedo = tex2D(_MainTex, i.uv0);
+                #if ALPHATEST_ON
+                    clip(albedo.a - _Cutoff);
+                #endif
+                fixed4 col = albedo * _Color * saturate(saturate(dot(float3(-0.4, -1, -0.5), i.normal)) + saturate(dot(float3(0.4, 1, 0.5), i.normal)));
+                #if EMISSION_ON
                     col += tex2D(_EmissionTex, i.uv1) * _EmissionColor;
                 #endif
                 return col;
@@ -93,14 +110,16 @@ Shader "PathTracing/Standard"
 
             HLSLPROGRAM
 
-			#include "GlobalResources.hlsl"
+            #include "GlobalResources.hlsl"
             #include "RayPayload.hlsl"
-			#include "Shading.hlsl"
-			#include "UnityRaytracingMeshUtils.cginc"
+            #include "Shading.hlsl"
+            #include "UnityRaytracingMeshUtils.cginc"
 
             #pragma raytracing main_hit_group
 
-            #pragma shader_feature_raytracing _EMISSION
+            #pragma shader_feature_raytracing EMISSION_ON
+            #pragma shader_feature_raytracing ALPHATEST_ON
+			#pragma shader_feature_raytracing DOUBLE_SIDED_ON
 
             float4 _Color;
             float4 _SpecularColor;
@@ -112,6 +131,8 @@ Shader "PathTracing/Standard"
             Texture2D<float4> _EmissionTex;
             float4 _EmissionTex_ST;
             SamplerState sampler__EmissionTex;
+
+            float _Cutoff;
 
             float4 _EmissionColor;
 
@@ -182,7 +203,7 @@ Shader "PathTracing/Standard"
                 float3 baseColor = _Color.xyz * _MainTex.SampleLevel(sampler__MainTex, _MainTex_ST.xy * uv + _MainTex_ST.zw, 0).xyz;
 
                 float3 emission = float3(0, 0, 0);
-#if _EMISSION
+#if EMISSION_ON
                 emission = _EmissionColor.xyz * _EmissionTex.SampleLevel(sampler__EmissionTex, _EmissionTex_ST.xy * uv + _EmissionTex_ST.zw, 0).xyz;
 #endif
 
@@ -196,6 +217,22 @@ Shader "PathTracing/Standard"
                 m.alpha         = SmoothnessToAlpha(_Smoothness);
                 m.emission      = emission;
                 return m;
+            }
+
+            [shader("anyhit")]
+            void AnyHitMain(inout RayPayload payload : SV_RayPayload, AttributeData attribs : SV_IntersectionAttributes)
+            {
+                uint3 tri = UnityRayTracingFetchTriangleIndices(PrimitiveIndex());
+                float2 uv0 = UnityRayTracingFetchVertexAttribute2(tri.x, kVertexAttributeTexCoord0);
+                float2 uv1 = UnityRayTracingFetchVertexAttribute2(tri.y, kVertexAttributeTexCoord0);
+                float2 uv2 = UnityRayTracingFetchVertexAttribute2(tri.z, kVertexAttributeTexCoord0);
+
+                float2 uv = uv0 * (1.0 - attribs.barycentrics.x - attribs.barycentrics.y) + uv1 * attribs.barycentrics.x + uv2 * attribs.barycentrics.y;
+                float alpha = _MainTex.SampleLevel(sampler__MainTex, _MainTex_ST.xy * uv + _MainTex_ST.zw, 0).a;
+                if (alpha < _Cutoff)
+                {
+                    IgnoreHit();
+                }
             }
 
             [shader("closesthit")]
