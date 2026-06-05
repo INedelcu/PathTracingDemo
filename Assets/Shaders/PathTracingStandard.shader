@@ -164,8 +164,9 @@ Shader "PathTracing/Standard"
             Vertex InterpolateVertices(Vertex v0, Vertex v1, Vertex v2, float3 barycentrics)
             {
                 Vertex v;
+                v.position = InterpolatePositionPrecise(v0.position, v1.position, v2.position, barycentrics);
+
                 #define INTERPOLATE_ATTRIBUTE(attr) v.attr = v0.attr * barycentrics.x + v1.attr * barycentrics.y + v2.attr * barycentrics.z
-                INTERPOLATE_ATTRIBUTE(position);
                 INTERPOLATE_ATTRIBUTE(normal);
                 INTERPOLATE_ATTRIBUTE(uv);
                 return v;
@@ -193,7 +194,7 @@ Shader "PathTracing/Standard"
                 float3 e1 = v2.position - v0.position;
                 s.worldFaceNormal = normalize(mul(cross(e0, e1), (float3x3)WorldToObject()));
 
-                s.worldPosition = mul(ObjectToWorld(), float4(v.position, 1)).xyz;
+                s.worldPosition = TransformObjectToWorldPositionPrecise(v.position);
                 s.uv = v.uv;
                 return s;
             }

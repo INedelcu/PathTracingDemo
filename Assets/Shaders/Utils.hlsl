@@ -80,6 +80,38 @@ void BuildOrthonormalBasis(float3 n, out float3 b1, out float3 b2)
     b2 = float3(b, sgn + n.y * n.y * a, -n.y);
 }
 
+// Reconstructs the hit position from the triangle vertices in object space, keeping
+// the barycentric interpolation in a precise edge based mad chain (van Antwerpen
+// 2023, "Solving Self-Intersection Artifacts in DirectX Raytracing"). Building the
+// result from the two edges and adding the base vertex last avoids the cancellation
+// of the plain weighted sum of the three vertices, which perturbs the hit point and
+// feeds self intersection. Feed the result through TransformObjectToWorldPositionPrecise.
+float3 InterpolatePositionPrecise(float3 p0, float3 p1, float3 p2, float3 barycentrics)
+{
+    precise float3 edge0 = p1 - p0;
+    precise float3 edge1 = p2 - p0;
+    precise float3 position = p0 + mad(barycentrics.y, edge0, mul(barycentrics.z, edge1));
+    return position;
+}
+
+// Transforms an object space position to world space while preserving precision in
+// the result (van Antwerpen 2023, "Solving Self-Intersection Artifacts in DirectX
+// Raytracing"). The translation column is added last as a separate term so it does
+// not swamp the low order bits of the rotated and scaled position, and expanding the
+// matrix multiply by hand keeps the rest of the work in a precise mad chain instead
+// of the default mul. It complements the precise barycentric reconstruction of the
+// object space position, keeping world space hit points stable far from the origin.
+float3 TransformObjectToWorldPositionPrecise(float3 objectPosition)
+{
+    const float3x4 o2w = ObjectToWorld();
+
+    precise float3 worldPosition;
+    worldPosition.x = o2w._m03 + mad(o2w._m00, objectPosition.x, mad(o2w._m01, objectPosition.y, mul(o2w._m02, objectPosition.z)));
+    worldPosition.y = o2w._m13 + mad(o2w._m10, objectPosition.x, mad(o2w._m11, objectPosition.y, mul(o2w._m12, objectPosition.z)));
+    worldPosition.z = o2w._m23 + mad(o2w._m20, objectPosition.x, mad(o2w._m21, objectPosition.y, mul(o2w._m22, objectPosition.z)));
+    return worldPosition;
+}
+
 float Luminance(float3 c)
 {
     return dot(c, float3(0.2126, 0.7152, 0.0722));
