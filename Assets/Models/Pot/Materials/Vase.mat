@@ -14,7 +14,8 @@ Material:
   m_ValidKeywords:
   - DOUBLE_SIDED_ON
   - FLAT_SHADING_ON
-  m_InvalidKeywords: []
+  m_InvalidKeywords:
+  - _FLATSHADING_ON
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
@@ -30,7 +31,7 @@ Material:
     - _ExtinctionCoefficient: 14.38
     - _FlatShading: 1
     - _IOR: 1.5
-    - _Roughness: 0.155
+    - _Roughness: 0.107
     m_Colors:
     - _Color: {r: 0.99999994, g: 0.99999994, b: 0.99999994, a: 1}
   m_BuildTextureStacks: []
