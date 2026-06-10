@@ -12,7 +12,7 @@ struct RayPayload
 {
     float3 weight;                  // Per hit throughput multiplier written by the closest hit shader. Ray gen applies throughput *= weight after radiance accumulation.
     float3 emission;                // Surface emission plus single sample direct lighting from the closest hit shader. Summed into radiance with the pre update throughput.
-    float3 bounceRayOrigin;         // Continuation ray origin, already pushed off K_RAY_ORIGIN_PUSH_OFF along the face normal (opaque) or shading normal with reflect/refract sign (glass) to avoid self intersection.
+    float3 bounceRayOrigin;         // Continuation ray origin, already pushed off the surface by OffsetRayOrigin along the face normal (opaque) or shading normal with reflect/refract sign (glass) to avoid self intersection.
     float3 bounceRayDirection;      // Continuation ray direction, sampled from the BSDF by the closest hit shader.
     uint bounceIndices;             // Packed opaque/transparent/total bounce counters; layout documented above. 0xffffffff is the terminated path sentinel.
     uint rngState;                  // Random number generator state.

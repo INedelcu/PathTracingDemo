@@ -189,7 +189,6 @@ Shader "PathTracing/Standard"
                 float3 localNormal = s.isFrontFace ? v.normal : -v.normal;
                 s.worldNormal = normalize(mul(localNormal, (float3x3)WorldToObject()));
 
-                // Push-off uses the face normal, not the interpolated normal.
                 float3 e0 = v1.position - v0.position;
                 float3 e1 = v2.position - v0.position;
                 s.worldFaceNormal = normalize(mul(cross(e0, e1), (float3x3)WorldToObject()));

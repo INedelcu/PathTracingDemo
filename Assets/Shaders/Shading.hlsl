@@ -32,7 +32,7 @@ struct MaterialSample
 // accumulation.
 void ShadeOpaqueSurface(inout RayPayload payload, in SurfaceHit hit, in MaterialSample mat, float3 V)
 {
-    // Branch probability based on per-lobe luminance. The estimator stays unbiased for any positive probability.
+    // Branch probability based on per-lobe luminance.
     // Clamping avoids losing a lobe entirely when the other dominates.
     float specLum = Luminance(mat.F0);
     float diffLum = Luminance(mat.diffuseAlbedo);
@@ -40,9 +40,7 @@ void ShadeOpaqueSurface(inout RayPayload payload, in SurfaceHit hit, in Material
 
     float3 diffuseTint = mat.diffuseAlbedo * (1.0 - mat.F0);
 
-    // Shared origin for the shadow ray (NEE) and the next bounce ray, pushed off
-    // along the face normal to avoid self intersection against this surface.
-    float3 hitRayOrigin = hit.worldPosition + K_RAY_ORIGIN_PUSH_OFF * hit.worldFaceNormal;
+    float3 hitRayOrigin = OffsetRayOrigin(hit.worldPosition, hit.worldFaceNormal);
 
     // Single sample next event estimation: pick one light uniformly, evaluate
     // BRDF * cos in its direction, and shoot the shadow ray right here. The
@@ -65,7 +63,8 @@ void ShadeOpaqueSurface(inout RayPayload payload, in SurfaceHit hit, in Material
             float  pickPdf = 1.0 / (float)g_LightCount;
             float3 fSpec   = EvaluateSpecularGGX(V, wi, hit.worldNormal, mat.F0, mat.alpha);
             float3 fDiff   = EvaluateDiffuseLambert(diffuseTint, hit.worldNormal, wi);
-            float  visible = TraceShadowRay(hitRayOrigin, wi, max(dist - K_RAY_ORIGIN_PUSH_OFF, 0.0));
+            float3 shadowRayOrigin = OffsetRayOrigin(hit.worldPosition, hit.worldFaceNormal, K_SHADOW_RAY_OFFSET_SCALE);
+            float  visible = TraceShadowRay(shadowRayOrigin, wi, dist * (1.0 - K_SHADOW_RAY_T_EPSILON));
 
             directLight = (fSpec + fDiff) * Le * visible / pickPdf;
         }

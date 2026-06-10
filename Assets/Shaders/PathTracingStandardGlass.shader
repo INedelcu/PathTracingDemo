@@ -187,7 +187,7 @@ Shader "PathTracing/StandardGlass"
 
                 payload.weight = weight * absorption;
                 payload.emission = float3(0, 0, 0);
-                payload.bounceRayOrigin = hit.worldPosition + pushSign * K_RAY_ORIGIN_PUSH_OFF * hit.worldNormal;
+                payload.bounceRayOrigin = OffsetRayOrigin(hit.worldPosition, pushSign * hit.worldNormal);
                 payload.bounceRayDirection = L;
 				payload.IncrementBounceIndexTransparent();
             }

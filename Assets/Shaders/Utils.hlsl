@@ -8,7 +8,13 @@
 #define K_QUARTER_PI            0.7853981633f
 #define K_TWO_PI                6.283185307f
 #define K_T_MAX                 10000
-#define K_RAY_ORIGIN_PUSH_OFF   0.002
+#define K_SHADOW_RAY_T_EPSILON  1e-3    // Relative shortening so shadow rays stop just short of the light.
+
+#define K_RAY_OFFSET_ORIGIN      1.0
+#define K_RAY_OFFSET_FLOAT_SCALE (1.0 / 256.0)
+#define K_RAY_OFFSET_INT_SCALE   32768.0
+
+#define K_SHADOW_RAY_OFFSET_SCALE 0.25
 
 #define ENABLE_RUSSIAN_ROULETTE 1
 
@@ -110,6 +116,34 @@ float3 TransformObjectToWorldPositionPrecise(float3 objectPosition)
     worldPosition.y = o2w._m13 + mad(o2w._m10, objectPosition.x, mad(o2w._m11, objectPosition.y, mul(o2w._m12, objectPosition.z)));
     worldPosition.z = o2w._m23 + mad(o2w._m20, objectPosition.x, mad(o2w._m21, objectPosition.y, mul(o2w._m22, objectPosition.z)));
     return worldPosition;
+}
+
+// Adaptive ray origin offset that lifts a hit point off its surface so the
+// continuation and shadow rays do not self intersect the geometry they start on
+// (Wächter & Binder 2019, "A Fast and Robust Method for Avoiding Self-Intersection",
+// Ray Tracing Gems, Chapter 6). Each component is advanced by a fixed number of
+// integer ULPs along the geometric normal, which scales the step with the
+// magnitude of the coordinate and keeps it robust far from the world origin.
+// Components near the origin fall back to a small absolute step because ULPs
+// there are too tiny to clear the surface. n must point to the side the ray
+// leaves on (flip it for the refracted side). scale multiplies the integer and
+// float steps together so the boundary between them stays continuous; pass 1 for
+// the full offset or a smaller value for a tighter lift (e.g. shadow rays).
+float3 OffsetRayOrigin(float3 p, float3 n, float scale = 1.0)
+{
+    const float origin     = K_RAY_OFFSET_ORIGIN;
+    const float floatScale = K_RAY_OFFSET_FLOAT_SCALE * scale;
+    const float intScale   = K_RAY_OFFSET_INT_SCALE * scale;
+
+    int3 ofI = int3((int)(intScale * n.x), (int)(intScale * n.y), (int)(intScale * n.z));
+
+    float3 pI = float3(asfloat(asint(p.x) + (p.x < 0 ? -ofI.x : ofI.x)),
+                       asfloat(asint(p.y) + (p.y < 0 ? -ofI.y : ofI.y)),
+                       asfloat(asint(p.z) + (p.z < 0 ? -ofI.z : ofI.z)));
+
+    return float3(abs(p.x) < origin ? p.x + floatScale * n.x : pI.x,
+                  abs(p.y) < origin ? p.y + floatScale * n.y : pI.y,
+                  abs(p.z) < origin ? p.z + floatScale * n.z : pI.z);
 }
 
 float Luminance(float3 c)
