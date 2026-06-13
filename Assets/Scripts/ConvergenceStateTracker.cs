@@ -14,6 +14,7 @@ public class ConvergenceStateTracker
         public uint bounceCountTransparent;
         public bool debugSingleBounce;
         public uint debugBounceIndex;
+        public bool debugValidate;
         public int lightHash;
         public uint instanceCount;
 #if UNITY_6000_4_OR_NEWER
@@ -31,6 +32,7 @@ public class ConvergenceStateTracker
                 && bounceCountTransparent == other.bounceCountTransparent
                 && debugSingleBounce == other.debugSingleBounce
                 && debugBounceIndex == other.debugBounceIndex
+                && debugValidate == other.debugValidate
                 && lightHash == other.lightHash
                 && instanceCount == other.instanceCount
                 && envTextureId == other.envTextureId
@@ -62,7 +64,7 @@ public class ConvergenceStateTracker
         step++;
     }
 
-    public void DetectInvalidation(Camera camera, uint bounceCountOpaque, uint bounceCountTransparent, bool debugSingleBounce, uint debugBounceIndex, int lightHash, uint instanceCount, Texture envTexture, RayTracingInstanceCullingResults cullingResult)
+    public void DetectInvalidation(Camera camera, uint bounceCountOpaque, uint bounceCountTransparent, bool debugSingleBounce, uint debugBounceIndex, bool debugValidate, int lightHash, uint instanceCount, Texture envTexture, RayTracingInstanceCullingResults cullingResult)
     {
         Snapshot current = new Snapshot
         {
@@ -72,6 +74,7 @@ public class ConvergenceStateTracker
             bounceCountTransparent = bounceCountTransparent,
             debugSingleBounce      = debugSingleBounce,
             debugBounceIndex       = debugSingleBounce ? debugBounceIndex : 0u,
+            debugValidate          = debugValidate,
             lightHash              = lightHash,
             instanceCount          = instanceCount,           
 #if UNITY_6000_4_OR_NEWER

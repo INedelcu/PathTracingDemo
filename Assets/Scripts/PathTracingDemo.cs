@@ -24,6 +24,9 @@ public class PathTracingDemo : MonoBehaviour
     [Tooltip("When Debug Single Bounce is enabled, this selects which bounce to visualize. 0 is the primary ray hit (directly visible emission and direct lighting).")]
     public uint debugBounceIndex = 0;
 
+    [Tooltip("Flag pixels whose sample is non-finite (NaN or Inf) in bright magenta instead of accumulating them, to locate the source of bad samples. The flag is sticky for the rest of convergence.")]
+    public bool debugValidate = false;
+
     private uint cameraWidth = 0;
     private uint cameraHeight = 0;
 
@@ -279,7 +282,7 @@ public class PathTracingDemo : MonoBehaviour
         RayTracingInstanceCullingResults cullingResult = BuildAccelerationStructure();
         uint instanceCount = rayTracingAccelerationStructure.GetInstanceCount();
 
-        convergenceTracker.DetectInvalidation(Camera.main, bounceCountOpaque, bounceCountTransparent, debugSingleBounce, debugBounceIndex, lightHash, instanceCount, envTexture, cullingResult);
+        convergenceTracker.DetectInvalidation(Camera.main, bounceCountOpaque, bounceCountTransparent, debugSingleBounce, debugBounceIndex, debugValidate, lightHash, instanceCount, envTexture, cullingResult);
 
         rayTracingShader.SetShaderPass("PathTracing");
 
@@ -300,9 +303,14 @@ public class PathTracingDemo : MonoBehaviour
         rayTracingShader.SetTexture(Shader.PropertyToID("g_EnvTex"), envTexture);
 
         if (debugSingleBounce)
-            Shader.EnableKeyword("DEBUG_SINGLE_BOUNCE");
+            rayTracingShader.EnableKeyword("DEBUG_SINGLE_BOUNCE");
         else
-            Shader.DisableKeyword("DEBUG_SINGLE_BOUNCE");
+            rayTracingShader.DisableKeyword("DEBUG_SINGLE_BOUNCE");
+
+        if (debugValidate)
+            rayTracingShader.EnableKeyword("DEBUG_VALIDATE");
+        else
+            rayTracingShader.DisableKeyword("DEBUG_VALIDATE");
 
         // Output
         rayTracingShader.SetTexture(Shader.PropertyToID("g_Radiance"), rayTracingOutput);

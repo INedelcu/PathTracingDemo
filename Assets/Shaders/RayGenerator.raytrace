@@ -7,8 +7,11 @@
 // Depth 2 covers the primary TraceRay plus the next event estimation shadow ray issued from the closest hit shader.
 #pragma max_recursion_depth 2
 
-// Debug variant that isolates the radiance gathered at a single bounce. Toggled from the PathTracingDemo inspector checkbox via the global keyword.
-#pragma multi_compile __ DEBUG_SINGLE_BOUNCE
+// Debug variant that isolates the radiance gathered at a single bounce. Toggled from the PathTracingDemo inspector checkbox via a local keyword on the ray tracing shader.
+#pragma multi_compile_local __ DEBUG_SINGLE_BOUNCE
+
+// Debug variant that flags non-finite samples instead of accumulating them. Toggled from the PathTracingDemo inspector checkbox via a local keyword on the ray tracing shader.
+#pragma multi_compile_local __ DEBUG_VALIDATE
 
 // Input
 float                           g_Zoom;
@@ -104,6 +107,19 @@ void MainRayGenShader()
     // compilation errors and don't increase the bounce index (the 1000 value in the while loop is arbitrary).
 
     float3 prevRadiance = g_Radiance[launchIndex].xyz;
+
+#ifdef DEBUG_VALIDATE
+    // Flag any pixel whose new sample is non-finite (NaN or Inf) in bright
+    // magenta instead of folding it into the progressive average, where a
+    // single bad sample would poison the pixel for the rest of convergence.
+    const float3 debugValidateColor = float3(1, 0, 1);
+    bool alreadyFlagged = g_ConvergenceStep > 0 && all(prevRadiance == debugValidateColor);
+    if (alreadyFlagged || !all(isfinite(radiance)))
+    {
+        g_Radiance[launchIndex] = float4(debugValidateColor, 1);
+        return;
+    }
+#endif
 
     float3 result = lerp(prevRadiance, radiance, 1 / float(g_ConvergenceStep + 1));
 
