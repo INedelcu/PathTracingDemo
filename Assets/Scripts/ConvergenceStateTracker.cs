@@ -9,29 +9,35 @@ public class ConvergenceStateTracker
     private struct Snapshot : System.IEquatable<Snapshot>
     {
         public Matrix4x4 cameraToWorld;
+        public float fieldOfView;
         public uint bounceCountOpaque;
         public uint bounceCountTransparent;
         public bool debugSingleBounce;
         public uint debugBounceIndex;
         public int lightHash;
         public uint instanceCount;
+#if UNITY_6000_4_OR_NEWER
+        public EntityId envTextureId;
+#else
+        public int envTextureId;
+#endif
+        public uint envTextureUpdateCount;
 
         public bool Equals(Snapshot other)
         {
             return cameraToWorld == other.cameraToWorld
+                && fieldOfView == other.fieldOfView
                 && bounceCountOpaque == other.bounceCountOpaque
                 && bounceCountTransparent == other.bounceCountTransparent
                 && debugSingleBounce == other.debugSingleBounce
                 && debugBounceIndex == other.debugBounceIndex
                 && lightHash == other.lightHash
-                && instanceCount == other.instanceCount;
+                && instanceCount == other.instanceCount
+                && envTextureId == other.envTextureId
+                && envTextureUpdateCount == other.envTextureUpdateCount;
         }
     }
 
-    // RayTracingInstanceMaterialCRC.instanceID became EntityId entityId in Unity 6.4, so the key
-    // type follows the running version. The two maps are double buffered: each frame the live
-    // materials are written into one and compared against the other. Materials that left the scene
-    // are absent from the new baseline, so neither map grows without bound.
 #if UNITY_6000_4_OR_NEWER
     private Dictionary<EntityId, int> prevMaterialCRCs = new Dictionary<EntityId, int>();
     private Dictionary<EntityId, int> currMaterialCRCs = new Dictionary<EntityId, int>();
@@ -56,17 +62,24 @@ public class ConvergenceStateTracker
         step++;
     }
 
-    public void DetectInvalidation(Camera camera, uint bounceCountOpaque, uint bounceCountTransparent, bool debugSingleBounce, uint debugBounceIndex, int lightHash, uint instanceCount, RayTracingInstanceCullingResults cullingResult)
+    public void DetectInvalidation(Camera camera, uint bounceCountOpaque, uint bounceCountTransparent, bool debugSingleBounce, uint debugBounceIndex, int lightHash, uint instanceCount, Texture envTexture, RayTracingInstanceCullingResults cullingResult)
     {
         Snapshot current = new Snapshot
         {
             cameraToWorld          = camera.cameraToWorldMatrix,
+            fieldOfView            = camera.fieldOfView,
             bounceCountOpaque      = bounceCountOpaque,
             bounceCountTransparent = bounceCountTransparent,
             debugSingleBounce      = debugSingleBounce,
             debugBounceIndex       = debugSingleBounce ? debugBounceIndex : 0u,
             lightHash              = lightHash,
-            instanceCount          = instanceCount,
+            instanceCount          = instanceCount,           
+#if UNITY_6000_4_OR_NEWER
+            envTextureId           = envTexture ? envTexture.GetEntityId() : EntityId.None,
+#else
+            envTextureId           = envTexture ? envTexture.GetInstanceID() : 0,
+#endif
+            envTextureUpdateCount  = envTexture ? envTexture.updateCount : 0u,
         };
 
         bool reset = !current.Equals(prevSnapshot);

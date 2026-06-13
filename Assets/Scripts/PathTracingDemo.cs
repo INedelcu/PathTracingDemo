@@ -279,7 +279,7 @@ public class PathTracingDemo : MonoBehaviour
         RayTracingInstanceCullingResults cullingResult = BuildAccelerationStructure();
         uint instanceCount = rayTracingAccelerationStructure.GetInstanceCount();
 
-        convergenceTracker.DetectInvalidation(Camera.main, bounceCountOpaque, bounceCountTransparent, debugSingleBounce, debugBounceIndex, lightHash, instanceCount, cullingResult);
+        convergenceTracker.DetectInvalidation(Camera.main, bounceCountOpaque, bounceCountTransparent, debugSingleBounce, debugBounceIndex, lightHash, instanceCount, envTexture, cullingResult);
 
         rayTracingShader.SetShaderPass("PathTracing");
 
