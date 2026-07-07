@@ -10,8 +10,9 @@
 struct SurfaceHit
 {
     float3 worldPosition;
-    float3 worldNormal;
-    float3 worldFaceNormal;
+    float3 worldNormal;       // Shading normal: interpolated vertex normal, perturbed by the normal map when one is assigned.
+    float3 worldVertexNormal; // Interpolated vertex normal before any normal map perturbation.
+    float3 worldFaceNormal;   // Triangle face normal, flipped to the ray side on back face hits.
     float2 uv;
     bool isFrontFace;
 };
@@ -25,11 +26,6 @@ struct MaterialSample
     float3 emission;
 };
 
-// Traces one shadow ray for single sample next event estimation and writes the
-// continuation ray plus the new throughput (payload.weight). The direct
-// lighting contribution is folded into payload.emission so the ray gen
-// integrator picks it up with the standard radiance += emission * throughput
-// accumulation.
 void ShadeOpaqueSurface(inout RayPayload payload, in SurfaceHit hit, in MaterialSample mat, float3 V)
 {
     // Branch probability based on per-lobe luminance.
@@ -39,6 +35,20 @@ void ShadeOpaqueSurface(inout RayPayload payload, in SurfaceHit hit, in Material
     float specularChance = clamp(specLum / max(specLum + diffLum, 1e-7), 0.1, 0.9);
 
     float3 diffuseTint = mat.diffuseAlbedo * (1.0 - mat.F0);
+
+#if NORMAL_MAP_ON
+    // Specular lobe uses a shading normal bent so the mirror reflection of V stays above the smooth surface.
+    // With the raw normal, strong normal map perturbations reflect view rays into the surface and the rejected
+    // samples render as black patches. Identity when the reflection is valid.
+    // Like the terminator factor, the reference is the interpolated vertex
+    // normal: using the geometry normal will result in a discontinuity at triangle edges and visible
+    // seams in reflections on coarse meshes.
+    float3 specularNormal = ComputeConsistentShadingNormal(V, hit.worldVertexNormal, hit.worldNormal);
+#else
+    // Without a normal map the shading normal is the vertex normal, so the bent
+    // normal would equal it: skip the work and use the shading normal directly.
+    float3 specularNormal = hit.worldNormal;
+#endif
 
     float3 hitRayOrigin = OffsetRayOrigin(hit.worldPosition, hit.worldFaceNormal);
 
@@ -61,12 +71,19 @@ void ShadeOpaqueSurface(inout RayPayload payload, in SurfaceHit hit, in Material
             && dot(hit.worldFaceNormal, wi) > 0)
         {
             float  pickPdf = 1.0 / (float)g_LightCount;
-            float3 fSpec   = EvaluateSpecularGGX(V, wi, hit.worldNormal, mat.F0, mat.alpha);
+            float3 fSpec   = EvaluateSpecularGGX(V, wi, specularNormal, mat.F0, mat.alpha);
             float3 fDiff   = EvaluateDiffuseLambert(diffuseTint, hit.worldNormal, wi);
             float3 shadowRayOrigin = OffsetRayOrigin(hit.worldPosition, hit.worldFaceNormal, K_SHADOW_RAY_OFFSET_SCALE);
             float  visible = TraceShadowRay(shadowRayOrigin, wi, dist * (1.0 - K_SHADOW_RAY_T_EPSILON));
 
             directLight = (fSpec + fDiff) * Le * visible / pickPdf;
+
+#if NORMAL_MAP_ON
+            // Terminator factor (Chiang et al. 2019) - ramps the contribution to zero where the light drops
+            // below the smooth surface horizon so the normal map perturbation does not clip to black in a
+            // harsh band. The interpolated vertex normal is the reference, so only the normal map deviation is corrected.
+            directLight *= ShadowTerminatorTerm(hit.worldVertexNormal, hit.worldNormal, wi);
+#endif
         }
     }
 
@@ -76,7 +93,7 @@ void ShadeOpaqueSurface(inout RayPayload payload, in SurfaceHit hit, in Material
     float3 weight;
     if (doSpecular)
     {
-        if (!SampleSpecularGGX(V, hit.worldNormal, mat.F0, mat.alpha, payload.rngState, L, weight))
+        if (!SampleSpecularGGX(V, specularNormal, mat.F0, mat.alpha, payload.rngState, L, weight))
         {
             payload.weight = float3(0, 0, 0);
             payload.emission = mat.emission + directLight;
@@ -90,6 +107,23 @@ void ShadeOpaqueSurface(inout RayPayload payload, in SurfaceHit hit, in Material
         SampleDiffuseLambert(hit.worldNormal, diffuseTint, payload.rngState, L, weight);
         weight /= (1.0 - specularChance);
     }
+
+#if NORMAL_MAP_ON
+    // The terminator discontinuity exists for the sampled bounce direction
+    // too, so the same factor keeps indirect lighting consistent with the
+    // corrected direct lighting. A zero factor means the sample fell below
+    // the smooth surface horizon and would contribute nothing: end the path
+    // instead of tracing a ray with zero throughput.
+    float bounceTerminator = ShadowTerminatorTerm(hit.worldVertexNormal, hit.worldNormal, L);
+    if (bounceTerminator <= 0.0)
+    {
+        payload.weight = float3(0, 0, 0);
+        payload.emission = mat.emission + directLight;
+        payload.Terminate();
+        return;
+    }
+    weight *= bounceTerminator;
+#endif
 
     payload.weight = weight;
     payload.emission = mat.emission + directLight;

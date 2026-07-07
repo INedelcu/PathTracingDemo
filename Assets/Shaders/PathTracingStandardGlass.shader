@@ -75,8 +75,8 @@ Shader "PathTracing/StandardGlass"
 
             #pragma raytracing main_hit_group
 
-            #pragma shader_feature_raytracing FLAT_SHADING_ON
-			#pragma shader_feature_raytracing DOUBLE_SIDED_ON
+            #pragma shader_feature_local_raytracing FLAT_SHADING_ON
+			#pragma shader_feature_local_raytracing DOUBLE_SIDED_ON
 
             float4 _Color;
             float _IOR;

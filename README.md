@@ -33,13 +33,17 @@ The image is built by progressively averaging samples across frames, so it conve
 * any material property is edited — this includes only materials used by Renderers in the acceleration structure;
 * an object is added, removed, or moved;
 * a light is added, removed, or changed (color, type, direction, range, or position);
-* the camera moves or rotates;
+* the camera moves, rotates, or changes its field of view;
+* the environment map is replaced or its texture contents are updated;
 * Space is pressed (manual reset);
 * the opaque or transparent bounce count changes;
 * **Debug Single Bounce** is toggled, or **Debug Bounce Index** changes while it is enabled;
+* **Debug Validate** is toggled;
 * the render target is resized (the window or camera resolution changes).
 
 Enable **Debug Single Bounce** in the inspector to isolate the radiance gathered at a single bounce; **Debug Bounce Index** selects which one, where 0 is the primary ray hit. Every other bounce contributes black, which is useful for inspecting how each bounce builds up the final image.
+
+Enable **Debug Validate** to locate the source of non-finite samples. A pixel whose sample is NaN or Inf is painted bright magenta instead of being folded into the accumulated average, where one bad sample would otherwise poison the pixel for the rest of convergence. The flag is sticky per pixel until convergence restarts, so even a source that only fires on occasional samples lights up exactly the pixels it originates from rather than spreading. It is a development aid; the renderer otherwise prevents non-finite values at their source.
 
 <img src="Images/DebugBounceIndex.png" width="1280">
 
@@ -53,6 +57,13 @@ Only materials derived from `PathTracingStandard.shader` and `PathTracingStandar
 * **Cutout** — the albedo texture alpha is compared against the **Alpha Cutoff** threshold per pixel. Texels below the cutoff are skipped, leaving a hard edged hole; texels at or above it shade as opaque. This drives the `ALPHATEST_ON` keyword, which enables an any hit shader that samples the albedo alpha and calls `IgnoreHit()` below the cutoff. The cutout applies to camera rays and shadow rays alike, so foliage and fences cast correctly perforated shadows.
 
 A **Double Sided** toggle controls back-face culling. When off, the surface is single sided: rays that strike a back face pass straight through, matching `Cull Back` in the editor preview. When on, the toggle enables the `DOUBLE_SIDED_ON` keyword, which `RayTracingInstanceTriangleCullingConfig.optionalDoubleSidedShaderKeywords` registers as double sided, so the acceleration structure traces both faces and the closest hit shader flips the shading normal on back-face hits. Enable it for thin geometry such as leaves and cloth that needs to be lit from either side.
+
+Assigning a **Normal Map** texture on `PathTracingStandard.shader` enables tangent space normal mapping — the `NORMAL_MAP_ON` keyword follows the texture assignment, with no separate toggle. Emission works the same way: `EMISSION_ON` is enabled whenever the emission color is above black. The closest hit shader fetches the vertex tangents, builds an orthonormal frame around the interpolated normal (the bitangent sign accounts for both the mesh handedness and negatively scaled instances), and perturbs the shading normal with the sampled map; a **Scale** slider stretches or flattens the perturbation.
+
+Two corrections keep strong perturbations artifact free:
+
+* The BRDF contribution is multiplied by the terminator shadowing factor of Chiang et al. (2019): it leaves the look untouched while the light is above the shading normal and ramps the contribution smoothly to zero at the surface horizon, replacing the harsh black band that perturbed shading normals produce at the shadow terminator. The interpolated vertex normal serves as the reference surface, so the factor corrects only the deviation added by the normal map and stays continuous across triangle edges — referencing the per triangle face normal instead would make the tessellation of coarse smooth meshes visible as faceting. The factor is applied to both the next event estimation sample and the sampled bounce direction, so direct and indirect lighting stay consistent.
+* The specular lobe is evaluated and sampled with a consistent shading normal (Keller et al. 2017): the normal is bent, view dependently, so the mirror reflection of the view direction stays above the surface. Without it, strong perturbations reflect view rays into the surface; those samples are rejected and show up as black patches in sharp reflections. The reference surface is the interpolated vertex normal here too, for the same continuity reason.
 
 ## Direct lighting
 
@@ -73,8 +84,10 @@ Supported types:
 * Heitz, E. (2014). *Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs*. Journal of Computer Graphics Techniques 3(2). — Smith G1 and height-correlated G2.
 * Heitz, E., & d'Eon, E. (2014). *Importance Sampling Microfacet-Based BSDFs using the Distribution of Visible Normals*. EGSR 2014.
 * Duff, T., Burgess, J., Christensen, P., Hery, C., Kensler, A., Liani, M., & Villemin, R. (2017). *Building an Orthonormal Basis, Revisited*. Journal of Computer Graphics Techniques 6(1). — Branchless tangent-space basis.
+* Keller, A., Wächter, C., Raab, M., Seibert, D., van Antwerpen, D., Korndörfer, J., & Kettner, L. (2017). *The Iray Light Transport Simulation and Rendering System*. arXiv:1705.01263. https://arxiv.org/abs/1705.01263 — Shading normal adaptation: the specular shading normal is bent so the reflected view direction stays above the reference surface (`ComputeConsistentShadingNormal`).
 * Heitz, E. (2018). *Sampling the GGX Distribution of Visible Normals*. Journal of Computer Graphics Techniques 7(4). — VNDF importance sampling.
 * Wächter, C., & Binder, N. (2019). *A Fast and Robust Method for Avoiding Self-Intersection*. In Ray Tracing Gems, Chapter 6. Apress. https://www.realtimerendering.com/raytracinggems/ — Adaptive ray origin offset along the geometric normal that scales with the magnitude of the hit coordinate (`OffsetRayOrigin`).
+* Chiang, M. J.-Y., Li, Y. K., & Burley, B. (2019). *Taming the Shadow Terminator*. SIGGRAPH 2019 Talks. https://doi.org/10.1145/3306307.3328172 — Shadowing factor that removes the harsh shadow terminator caused by normal mapped shading normals (`ShadowTerminatorTerm`).
 * van Antwerpen, D. G. (2023). *Solving Self-Intersection Artifacts in DirectX Raytracing*. NVIDIA Developer Blog. https://developer.nvidia.com/blog/solving-self-intersection-artifacts-in-directx-raytracing/ — Precise barycentric position interpolation and a deferred translation in the object to world transform for stable world space hit points.
 * ITU-R Recommendation BT.709. *Parameter values for the HDTV standards for production and international programme exchange*. — Rec. 709 luminance weights.
 * Ertl, O. (2010). *Numerical Methods for Topography Simulation*. PhD thesis, TU Wien, §5.3.4, eq. (5.53). https://www.iue.tuwien.ac.at/phd/ertl/node100.html — `normalize(N + random_unit_vector)` cosine-weighted hemisphere sampling.

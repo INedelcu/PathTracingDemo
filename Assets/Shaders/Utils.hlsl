@@ -86,6 +86,19 @@ void BuildOrthonormalBasis(float3 n, out float3 b1, out float3 b2)
     b2 = float3(b, sgn + n.y * n.y * a, -n.y);
 }
 
+// Decodes a normal map texel into a tangent space normal. Multiplying x by w
+// first handles every packing Unity uses on desktop: plain RGB and BC5 leave
+// x in place (w is 1), while DXT5nm moves the x stored in alpha into place.
+// z is rebuilt from xy so the result is unit length even for two channel
+// formats. scale stretches the xy deviation away from the flat normal
+// (0, 0, 1), matching the normal scale control in URP/HDRP.
+float3 UnpackNormalMapScaled(float4 packedNormal, float scale)
+{
+    packedNormal.x *= packedNormal.w;
+    float2 xy = (packedNormal.xy * 2.0 - 1.0) * scale;
+    return float3(xy, sqrt(saturate(1.0 - dot(xy, xy))));
+}
+
 // Reconstructs the hit position from the triangle vertices in object space, keeping
 // the barycentric interpolation in a precise edge based mad chain (van Antwerpen
 // 2023, "Solving Self-Intersection Artifacts in DirectX Raytracing"). Building the

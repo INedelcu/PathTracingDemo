@@ -101,6 +101,78 @@ float3 EvaluateDiffuseLambert(float3 albedo, float3 N, float3 L)
     return albedo * (NdotL / K_PI);
 }
 
+// Shadowing factor that tames the harsh shadow terminator introduced by
+// shading normals that deviate from the surface they shade (normal maps).
+// The BRDF is lit by dot(Ns, L) while visibility is governed by the surface,
+// so without it the lit region clips abruptly to black where the light
+// crosses the surface horizon. The factor applies no attenuation while the
+// light is on the reference normal side of the shading normal (the look away
+// from the terminator is untouched) and ramps the contribution to zero
+// exactly at the horizon. The cubic is a Hermite remap of the raw ratio that
+// matches the value and slope of the clamp at one, removing the C1 break.
+// Chiang, Li & Burley 2019, "Taming the Shadow Terminator".
+//   Ng — reference normal the deviation is measured against. Pass the
+//   interpolated vertex normal so only the normal map deviation is corrected:
+//   a per face normal makes the factor step at every triangle edge, drawing
+//   the tessellation onto coarsely tessellated smooth meshes.
+//   Ns — shading normal. L — light direction (next event estimation) or
+//   sampled bounce direction (indirect).
+// All unit length and on the same outgoing side of the surface.
+float ShadowTerminatorTerm(float3 Ng, float3 Ns, float3 L)
+{
+    float NgdotL = dot(Ng, L);
+    if (NgdotL <= 0.0)
+        return 0.0;
+
+    float denom = dot(Ns, L) * dot(Ng, Ns);
+    float G = denom > 0.0 ? min(1.0, NgdotL / denom) : 1.0;
+    return ((1.0 - G) * G + 1.0) * G; // -G^3 + G^2 + G in Horner form.
+}
+
+// Bends the shading normal, view dependently, so the mirror reflection of V
+// about the returned normal stays on the outgoing side of the reference
+// surface. Strongly perturbed shading normals (normal maps at high strength)
+// otherwise reflect view rays into the surface; those samples fail the
+// hemisphere tests and the path terminates, which shows up as black patches
+// in reflections. When the reflected direction is already valid the input
+// normal is returned unchanged, so the correction only acts in the broken
+// region. Use it for the specular lobe only: diffuse has no mirror direction
+// and keeps the raw shading normal. Follows the shading normal adaptation of
+// the Iray system (Keller et al. 2017, section A.3), matching the variant in
+// Unity HDRP's path tracer.
+//   V — outgoing view direction.
+//   Ng — reference normal the reflection is kept above. Pass the interpolated
+//   vertex normal: a per face normal makes the correction step at triangle
+//   edges, showing facet seams in reflections on coarse meshes (HDRP's
+//   geometric normal is the vertex normal as well).
+//   Ns — shading normal.
+float3 ComputeConsistentShadingNormal(float3 V, float3 Ng, float3 Ns)
+{
+    // Side of the reference surface the view direction is on. Normals here are
+    // already flipped to the ray side, so this is a safety for grazing cases
+    // where dot(Ng, V) crosses zero numerically.
+    float side = dot(Ng, V) >= 0.0 ? 1.0 : -1.0;
+
+    // If the shading normal faces away from V, project it back onto the view
+    // hemisphere boundary so the reflection below starts from a valid normal.
+    float NsdotV = side * dot(Ns, V);
+    float3 Nv = Ns - side * min(0.0, NsdotV) * V;
+
+    // Reflect V and check which side of the geometry the reflection lands on.
+    float3 R = reflect(-V, Nv);
+    float NgdotR = dot(Ng, R);
+    float sideR = NgdotR >= 0.0 ? 1.0 : -1.0;
+
+    if (side == sideR)
+        return Ns;
+
+    // Pull the reflected direction back to just above the reference horizon,
+    // then return the half vector of V and the adjusted direction: reflecting
+    // V about it yields exactly that direction.
+    R = normalize(R - (NgdotR + sideR * 0.001) * Ng);
+    return side * normalize(V + R);
+}
+
 // Sample the GGX-Smith specular lobe with VNDF importance sampling.
 // V:   outgoing direction in world space (toward the camera).
 // N:   shading normal in world space.

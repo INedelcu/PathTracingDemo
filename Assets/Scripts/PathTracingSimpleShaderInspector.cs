@@ -15,7 +15,8 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
     private static class Styles
     {
         public static GUIContent albedoText = EditorGUIUtility.TrTextContent("Albedo", "Albedo (RGB)");
-        public static GUIContent emissionText = EditorGUIUtility.TrTextContent("Color", "Emission (RGB)");
+        public static GUIContent emissionText = EditorGUIUtility.TrTextContent("Emission", "Emission (RGB)");
+        public static GUIContent normalMapText = EditorGUIUtility.TrTextContent("Normal Map", "Tangent space normal map");
         public static GUIContent surfaceMode = EditorGUIUtility.TrTextContent("Surface Type", "Opaque or Cutout");
         public static GUIContent doubleSidedText = EditorGUIUtility.TrTextContent("Double Sided", "Render and trace both front and back faces");
         public static readonly string[] surfaceTypeNames = Enum.GetNames(typeof(SurfaceType));
@@ -27,9 +28,10 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
     MaterialProperty albedoColor = null;
     MaterialProperty alphaCutoff = null;
     MaterialProperty metalicValue = null;
-    MaterialProperty emissionState = null;
     MaterialProperty emissionTex = null;
     MaterialProperty emissionColor = null;
+    MaterialProperty normalMapTex = null;
+    MaterialProperty normalMapScale = null;
     MaterialProperty specularColor = null;
     MaterialProperty smoothnessValue = null;
     MaterialProperty iorValue = null;
@@ -49,9 +51,11 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
 
         metalicValue = FindProperty("_Metallic", props);
 
-        emissionState = FindProperty("_Emission", props);
         emissionTex = FindProperty("_EmissionTex", props);
         emissionColor = FindProperty("_EmissionColor", props);
+
+        normalMapTex = FindProperty("_NormalMapTex", props);
+        normalMapScale = FindProperty("_NormalMapScale", props);
 
         specularColor = FindProperty("_SpecularColor", props);
 
@@ -86,8 +90,9 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
     }
 
     void SetMaterialKeywords(Material m)
-    {
-        SetKeyword(m, "EMISSION_ON", (emissionState.floatValue != 0.0f));
+    {     
+        SetKeyword(m, "EMISSION_ON", m.GetColor("_EmissionColor").maxColorComponent > 0.0f);
+        SetKeyword(m, "NORMAL_MAP_ON", m.GetTexture("_NormalMapTex") != null);
         SetKeyword(m ,"DOUBLE_SIDED_ON", (cullMode.floatValue == (float)UnityEngine.Rendering.CullMode.Off));
 
         var surfaceTypeValue = (SurfaceType)surfaceType.intValue;
@@ -122,7 +127,6 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
     {
         EditorGUIUtility.labelWidth = 0f;
 
-        var showEmissionSettings = false;
         var surfaceTypeValue = (SurfaceType)surfaceType.intValue;
         var doubleSided = cullMode.floatValue == (float)UnityEngine.Rendering.CullMode.Off;
 
@@ -145,41 +149,41 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
             m_MaterialEditor.TextureScaleOffsetProperty(albedoTex);
             EditorGUI.indentLevel = 0;
 
+            m_MaterialEditor.TexturePropertySingleLine(Styles.normalMapText, normalMapTex, normalMapTex.textureValue != null ? normalMapScale : null);
+
+            if (normalMapTex.textureValue != null)
+            {
+                EditorGUI.indentLevel = 1;
+
+                m_MaterialEditor.TextureScaleOffsetProperty(normalMapTex);
+
+                EditorGUI.indentLevel = 0;
+            }
+
             m_MaterialEditor.ColorProperty(specularColor, "Specular Color");
             m_MaterialEditor.RangeProperty(metalicValue, "Metallic");
             m_MaterialEditor.RangeProperty(smoothnessValue, "Smoothness");
             m_MaterialEditor.RangeProperty(iorValue, "Index Of Refraction");
 
-            showEmissionSettings = (emissionState.floatValue != 0.0f);
+            bool hadEmissionTexture = emissionTex.textureValue != null;
 
-            EditorGUI.showMixedValue = emissionState.hasMixedValue;
+            m_MaterialEditor.TexturePropertyWithHDRColor(Styles.emissionText, emissionTex, emissionColor, false);
 
-            showEmissionSettings = EditorGUILayout.Toggle("Emission", showEmissionSettings);
-
-            EditorGUI.showMixedValue = false;
-
-            if (showEmissionSettings)
+            if (emissionTex.textureValue != null)
             {
-                m_MaterialEditor.TexturePropertyWithHDRColor(Styles.emissionText, emissionTex, emissionColor, false);
-
                 EditorGUI.indentLevel = 1;
 
                 m_MaterialEditor.TextureScaleOffsetProperty(emissionTex);
 
                 EditorGUI.indentLevel = 0;
 
-                bool hadEmissionTexture = emissionTex.textureValue != null;
-
-                float brightness = emissionColor.colorValue.maxColorComponent;
-                if (emissionTex.textureValue != null && !hadEmissionTexture && brightness <= 0f)
+                if (!hadEmissionTexture && emissionColor.colorValue.maxColorComponent <= 0f)
                     emissionColor.colorValue = Color.white;
             }
         }
 
         if (EditorGUI.EndChangeCheck())
         {
-            emissionState.floatValue = showEmissionSettings ? 1.0f : 0.0f;
-
             surfaceType.intValue = (int)surfaceTypeValue;
 
             cullMode.floatValue = (float)(doubleSided ? UnityEngine.Rendering.CullMode.Off : UnityEngine.Rendering.CullMode.Back);
