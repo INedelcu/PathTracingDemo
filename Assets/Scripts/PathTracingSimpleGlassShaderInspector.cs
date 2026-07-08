@@ -11,6 +11,8 @@ public class PathTracingSimpleGlassShaderGUI : ShaderGUI
     MaterialProperty colorValue = null;
     MaterialProperty extinctionValue = null;
     MaterialProperty flatShadingState = null;
+    MaterialProperty normalMapTex = null;
+    MaterialProperty normalMapScale = null;
 
     bool firstTimeApply = true;
 
@@ -21,6 +23,8 @@ public class PathTracingSimpleGlassShaderGUI : ShaderGUI
         colorValue = FindProperty("_Color", props);
         extinctionValue = FindProperty("_ExtinctionCoefficient", props);
         flatShadingState = FindProperty("_FlatShading", props);
+        normalMapTex = FindProperty("_NormalMapTex", props);
+        normalMapScale = FindProperty("_NormalMapScale", props);
     }
 
     public override void OnGUI(MaterialEditor materialEditor, MaterialProperty[] properties)
@@ -52,6 +56,8 @@ public class PathTracingSimpleGlassShaderGUI : ShaderGUI
     {
         SetKeyword(m, "FLAT_SHADING_ON", (flatShadingState.floatValue != 0.0f));
         SetKeyword(m, "DOUBLE_SIDED_ON", true);
+        // Keyword follows the assigned map, so there is no enable toggle.
+        SetKeyword(m, "NORMAL_MAP_ON", m.GetTexture("_NormalMapTex") != null);
     }
 
     void MaterialChanged(Material material)
@@ -76,6 +82,15 @@ public class PathTracingSimpleGlassShaderGUI : ShaderGUI
             m_MaterialEditor.RangeProperty(extinctionValue, "Extinction Coefficient");
 
             m_MaterialEditor.RangeProperty(roughnessValue, "Roughness");
+
+            m_MaterialEditor.TexturePropertySingleLine(EditorGUIUtility.TrTextContent("Normal Map", "Tangent space normal map"), normalMapTex, normalMapTex.textureValue != null ? normalMapScale : null);
+
+            if (normalMapTex.textureValue != null)
+            {
+                EditorGUI.indentLevel = 1;
+                m_MaterialEditor.TextureScaleOffsetProperty(normalMapTex);
+                EditorGUI.indentLevel = 0;
+            }
 
             EditorGUI.showMixedValue = flatShadingState.hasMixedValue;
 

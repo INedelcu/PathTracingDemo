@@ -9,6 +9,9 @@ Shader "PathTracing/StandardGlass"
 
         [Toggle] _FlatShading("Flat Shading", float) = 0
 
+        [Normal]_NormalMapTex("Normal Map", 2D) = "bump" {}
+        _NormalMapScale("Normal Map Scale", Range(0.0, 2.0)) = 1.0
+
         _IOR("Index of Refraction", Range(1.0, 2.8)) = 1.5
     }
 
@@ -77,12 +80,18 @@ Shader "PathTracing/StandardGlass"
 
             #pragma shader_feature_local_raytracing FLAT_SHADING_ON
 			#pragma shader_feature_local_raytracing DOUBLE_SIDED_ON
+            #pragma shader_feature_local_raytracing NORMAL_MAP_ON
 
             float4 _Color;
             float _IOR;
             float _Roughness;
             float _ExtinctionCoefficient;
             float _FlatShading;
+
+            Texture2D<float4> _NormalMapTex;
+            float4 _NormalMapTex_ST;
+            SamplerState sampler__NormalMapTex;
+            float _NormalMapScale;
 
             struct AttributeData
             {
@@ -94,6 +103,9 @@ Shader "PathTracing/StandardGlass"
                 float3 position;
                 float3 normal;
                 float2 uv;
+#if NORMAL_MAP_ON
+                float4 tangent;
+#endif
             };
 
             Vertex FetchVertex(uint vertexIndex)
@@ -102,6 +114,9 @@ Shader "PathTracing/StandardGlass"
                 v.position = UnityRayTracingFetchVertexAttribute3(vertexIndex, kVertexAttributePosition);
                 v.normal = UnityRayTracingFetchVertexAttribute3(vertexIndex, kVertexAttributeNormal);
                 v.uv = UnityRayTracingFetchVertexAttribute2(vertexIndex, kVertexAttributeTexCoord0);
+#if NORMAL_MAP_ON
+                v.tangent = UnityRayTracingFetchVertexAttribute4(vertexIndex, kVertexAttributeTangent);
+#endif
                 return v;
             }
 
@@ -113,19 +128,23 @@ Shader "PathTracing/StandardGlass"
                 #define INTERPOLATE_ATTRIBUTE(attr) v.attr = v0.attr * barycentrics.x + v1.attr * barycentrics.y + v2.attr * barycentrics.z
                 INTERPOLATE_ATTRIBUTE(normal);
                 INTERPOLATE_ATTRIBUTE(uv);
+#if NORMAL_MAP_ON
+                INTERPOLATE_ATTRIBUTE(tangent);
+#endif
                 return v;
             }
 
             struct SurfaceHit
             {
                 float3 worldPosition;
-                float3 worldNormal;
+                float3 worldNormal;      // Shading normal, perturbed by the normal map when one is assigned.
+                float3 worldGeomNormal;  // Unperturbed macro normal, used for the self intersection push-off.
                 bool   isFrontFace;
             };
 
-            // The macro-surface normal is oriented so that it points against the
-            // incoming ray (i.e. dot(N, V) > 0), which is what the microfacet
-            // sampler expects regardless of which side of the glass we hit.
+            // Both normals are oriented so they point against the incoming ray
+            // (i.e. dot(N, V) > 0), which is what the microfacet sampler and the
+            // push-off expect regardless of which side of the glass we hit.
             SurfaceHit LoadSurfaceHit(AttributeData attribs)
             {
                 uint3 tri = UnityRayTracingFetchTriangleIndices(PrimitiveIndex());
@@ -146,8 +165,34 @@ Shader "PathTracing/StandardGlass"
 #else
                 float3 localNormal = v.normal;
 #endif
-                localNormal *= s.isFrontFace ? 1.0 : -1.0;
-                s.worldNormal = normalize(mul(localNormal, (float3x3)WorldToObject()));
+                // Outward macro normal (front-face orientation), before the ray-side flip.
+                float3 worldOutNormal = normalize(mul(localNormal, (float3x3)WorldToObject()));
+                float3 shadingNormal = worldOutNormal;
+
+#if NORMAL_MAP_ON
+                // Perturb in the outward tangent frame, then apply the ray-side flip
+                // below, so a front and back hit of the same point produce exactly
+                // opposite normals - a consistent bumpy interface for the refraction.
+                float3 worldTangent = mul((float3x3)ObjectToWorld(), v.tangent.xyz);
+                worldTangent -= worldOutNormal * dot(worldOutNormal, worldTangent);
+                float tangentLengthSq = dot(worldTangent, worldTangent);
+                if (tangentLengthSq > 1e-12)
+                {
+                    worldTangent *= rsqrt(tangentLengthSq);
+                    float handedness = v.tangent.w * sign(determinant((float3x3)ObjectToWorld()));
+                    float3 worldBitangent = cross(worldOutNormal, worldTangent) * handedness;
+
+                    float4 packedNormal = _NormalMapTex.SampleLevel(sampler__NormalMapTex, _NormalMapTex_ST.xy * v.uv + _NormalMapTex_ST.zw, 0);
+                    float3 tangentNormal = UnpackNormalMapScaled(packedNormal, _NormalMapScale);
+                    float3x3 tangentToWorld = float3x3(worldTangent, worldBitangent, worldOutNormal);
+                    shadingNormal = normalize(mul(tangentNormal, tangentToWorld));
+                }
+#endif
+
+                // Orient both normals against the incoming ray (dot(N, V) > 0).
+                float sideFlip = s.isFrontFace ? 1.0 : -1.0;
+                s.worldNormal     = shadingNormal  * sideFlip;
+                s.worldGeomNormal = worldOutNormal * sideFlip;
 
                 s.worldPosition = TransformObjectToWorldPositionPrecise(v.position);
                 return s;
@@ -187,7 +232,7 @@ Shader "PathTracing/StandardGlass"
 
                 payload.weight = weight * absorption;
                 payload.emission = float3(0, 0, 0);
-                payload.bounceRayOrigin = OffsetRayOrigin(hit.worldPosition, pushSign * hit.worldNormal);
+                payload.bounceRayOrigin = OffsetRayOrigin(hit.worldPosition, pushSign * hit.worldGeomNormal);
                 payload.bounceRayDirection = L;
 				payload.IncrementBounceIndexTransparent();
             }
