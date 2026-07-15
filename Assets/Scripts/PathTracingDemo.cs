@@ -36,6 +36,9 @@ public class PathTracingDemo : MonoBehaviour
 
     private RayTracingAccelerationStructure rayTracingAccelerationStructure = null;
 
+    // GGX single scatter directional albedo LUT for multiple scattering energy compensation.
+    private Texture2D energyCompLUT = null;
+
     // Layout must match the Light struct in Assets/Shaders/Lights.hlsl (48 bytes).
     [StructLayout(LayoutKind.Sequential)]
     private struct LightData
@@ -135,6 +138,15 @@ public class PathTracingDemo : MonoBehaviour
             lightsBuffer = null;
         }
 
+        if (energyCompLUT != null)
+        {
+            if (Application.isPlaying)
+                Destroy(energyCompLUT);
+            else
+                DestroyImmediate(energyCompLUT);
+            energyCompLUT = null;
+        }
+
         cameraWidth = 0;
         cameraHeight = 0;
     }
@@ -209,10 +221,108 @@ public class PathTracingDemo : MonoBehaviour
         }
         return h;
     }
+    
+    private static float SmithG1(float NdotV, float a)
+    {
+        float a2 = a * a;
+        return 2.0f * NdotV / Mathf.Max(NdotV + Mathf.Sqrt(a2 + (1.0f - a2) * NdotV * NdotV), 1e-7f);
+    }
+
+    private static float SmithG2(float NdotL, float NdotV, float a)
+    {
+        float a2 = a * a;
+        float lambdaV = NdotL * Mathf.Sqrt(a2 + (1.0f - a2) * NdotV * NdotV);
+        float lambdaL = NdotV * Mathf.Sqrt(a2 + (1.0f - a2) * NdotL * NdotL);
+        return 2.0f * NdotL * NdotV / Mathf.Max(lambdaV + lambdaL, 1e-7f);
+    }
+
+    private static Vector3 SampleGGXVNDF(Vector3 Ve, float alpha, float u1, float u2)
+    {
+        Vector3 Vh = new Vector3(alpha * Ve.x, alpha * Ve.y, Ve.z).normalized;
+        float lensq = Vh.x * Vh.x + Vh.y * Vh.y;
+        Vector3 T1 = lensq > 0.0f ? new Vector3(-Vh.y, Vh.x, 0.0f) * (1.0f / Mathf.Sqrt(lensq)) : new Vector3(1, 0, 0);
+        Vector3 T2 = Vector3.Cross(Vh, T1);
+        float r = Mathf.Sqrt(u1);
+        float phi = 2.0f * Mathf.PI * u2;
+        float t1 = r * Mathf.Cos(phi);
+        float t2 = r * Mathf.Sin(phi);
+        float s = 0.5f * (1.0f + Vh.z);
+        t2 = (1.0f - s) * Mathf.Sqrt(Mathf.Max(0.0f, 1.0f - t1 * t1)) + s * t2;
+        Vector3 Nh = t1 * T1 + t2 * T2 + Mathf.Sqrt(Mathf.Max(0.0f, 1.0f - t1 * t1 - t2 * t2)) * Vh;
+        return new Vector3(alpha * Nh.x, alpha * Nh.y, Mathf.Max(0.0f, Nh.z)).normalized;
+    }
+
+    // Van der Corput radical inverse (base 2), the second Hammersley coordinate.
+    private static float RadicalInverseVdC(uint bits)
+    {
+        bits = (bits << 16) | (bits >> 16);
+        bits = ((bits & 0x55555555u) << 1) | ((bits & 0xAAAAAAAAu) >> 1);
+        bits = ((bits & 0x33333333u) << 2) | ((bits & 0xCCCCCCCCu) >> 2);
+        bits = ((bits & 0x0F0F0F0Fu) << 4) | ((bits & 0xF0F0F0F0u) >> 4);
+        bits = ((bits & 0x00FF00FFu) << 8) | ((bits & 0xFF00FF00u) >> 8);
+        return bits * 2.3283064365386963e-10f; // bits * 1 / 2^32
+    }
+
+    private static float GGXDirectionalAlbedo(float NdotV, float alpha, int sampleCount)
+    {
+        Vector3 V = new Vector3(Mathf.Sqrt(Mathf.Max(0.0f, 1.0f - NdotV * NdotV)), 0.0f, NdotV);
+        float g1 = SmithG1(NdotV, alpha);
+        float sum = 0.0f;
+        for (int i = 0; i < sampleCount; i++)
+        {
+            Vector3 H = SampleGGXVNDF(V, alpha, (i + 0.5f) / sampleCount, RadicalInverseVdC((uint)i));
+            float VdotH = Vector3.Dot(V, H);
+            Vector3 L = 2.0f * VdotH * H - V; // reflect(-V, H)
+            if (L.z > 0.0f)
+                sum += SmithG2(L.z, NdotV, alpha) / Mathf.Max(g1, 1e-7f);
+        }
+        return sum / sampleCount;
+    }
+
+    // --- Multiple-scattering energy compensation LUT ------------------------------
+    // Bakes E_ss(NdotV, perceptualRoughness): the GGX single-scatter directional albedo
+    // with Fresnel = 1, i.e. the mean of G2 / G1 over VNDF samples. 1 - E_ss is the
+    // energy the single-scatter specular lobe loses to ignored multiple bounces;
+    // Shading.hlsl scales the lobe by 1 + Favg (1 - E_ss) / E_ss to restore it. The GGX
+    // terms below mirror BRDF.hlsl exactly; a Hammersley sequence keeps the LUT smooth
+    // at a low sample count.
+    private Texture2D BakeEnergyCompLUT()
+    {
+        const int size = 64;
+        const int sampleCount = 2048;
+
+        Texture2D lut = new Texture2D(size, size, TextureFormat.RHalf, false, true)
+        {
+            name = "GGX Energy Compensation LUT",
+            wrapMode = TextureWrapMode.Clamp,
+            filterMode = FilterMode.Bilinear,
+        };
+
+        Color[] pixels = new Color[size * size];
+        for (int j = 0; j < size; j++)
+        {
+            // Row = perceptual roughness
+			// alpha = roughness^2 to match SmoothnessToAlpha
+            float roughness = (j + 0.5f) / size;
+            float alpha = Mathf.Max(roughness * roughness, 1e-4f);
+            for (int i = 0; i < size; i++)
+            {
+                float NdotV = Mathf.Max((i + 0.5f) / size, 1e-3f);
+                pixels[j * size + i] = new Color(GGXDirectionalAlbedo(NdotV, alpha, sampleCount), 0.0f, 0.0f, 0.0f);
+            }
+        }
+
+        lut.SetPixels(pixels);
+        lut.Apply(false, true);
+        return lut;
+    }
 
     private void CreateResources()
     {
         CreateRayTracingAccelerationStructure();
+
+        if (energyCompLUT == null)
+            energyCompLUT = BakeEnergyCompLUT();
 
         if (cameraWidth != Camera.main.pixelWidth || cameraHeight != Camera.main.pixelHeight)
         {
@@ -292,6 +402,7 @@ public class PathTracingDemo : MonoBehaviour
         Shader.SetGlobalInt(Shader.PropertyToID("g_MaxBounceCountTransparent"), (int)System.Math.Min(bounceCountTransparent, 254u));
         Shader.SetGlobalBuffer(Shader.PropertyToID("g_Lights"), lightsBuffer);
         Shader.SetGlobalInt(Shader.PropertyToID("g_LightCount"), lightCount);
+        Shader.SetGlobalTexture(Shader.PropertyToID("g_EnergyCompLUT"), energyCompLUT);
 
         // Input
         rayTracingShader.SetAccelerationStructure(Shader.PropertyToID("g_AccelStruct"), rayTracingAccelerationStructure);

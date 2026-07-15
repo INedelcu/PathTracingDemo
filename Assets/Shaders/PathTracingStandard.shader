@@ -26,6 +26,7 @@ Shader "PathTracing/Standard"
         [HideInInspector] _DstBlend("__dst", Float) = 0
         [HideInInspector] _ZWrite("__zw", Float) = 1
         [HideInInspector] _Cull("__cull", Float) = 2
+        [HideInInspector] _EnergyCompensation("__energycomp", Float) = 0
     }
 
     SubShader
@@ -122,6 +123,7 @@ Shader "PathTracing/Standard"
             #pragma shader_feature_local_raytracing ALPHATEST_ON
 			#pragma shader_feature_local_raytracing DOUBLE_SIDED_ON
             #pragma shader_feature_local_raytracing NORMAL_MAP_ON
+            #pragma shader_feature_local_raytracing ENERGY_COMPENSATION_ON
 
             float4 _Color;
             float4 _SpecularColor;

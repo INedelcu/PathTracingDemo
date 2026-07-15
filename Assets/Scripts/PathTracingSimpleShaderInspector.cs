@@ -19,6 +19,7 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
         public static GUIContent normalMapText = EditorGUIUtility.TrTextContent("Normal Map", "Tangent space normal map");
         public static GUIContent surfaceMode = EditorGUIUtility.TrTextContent("Surface Type", "Opaque or Cutout");
         public static GUIContent doubleSidedText = EditorGUIUtility.TrTextContent("Double Sided", "Render and trace both front and back faces");
+        public static GUIContent energyCompText = EditorGUIUtility.TrTextContent("Energy Compensation", "Add back the energy single-scatter GGX loses at high roughness (Kulla-Conty multiple scattering). Matters most for rough metals.");
         public static readonly string[] surfaceTypeNames = Enum.GetNames(typeof(SurfaceType));
     }
 
@@ -37,6 +38,7 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
     MaterialProperty iorValue = null;
     MaterialProperty surfaceType = null;
     MaterialProperty cullMode = null;
+    MaterialProperty energyCompensation = null;
 
     bool firstTimeApply = true;
 
@@ -44,6 +46,7 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
     {
         surfaceType = FindProperty("_SurfaceType", props);
         cullMode = FindProperty("_Cull", props);
+        energyCompensation = FindProperty("_EnergyCompensation", props);
 
         albedoTex = FindProperty("_MainTex", props);
         albedoColor = FindProperty("_Color", props);
@@ -90,10 +93,11 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
     }
 
     void SetMaterialKeywords(Material m)
-    {     
+    {
         SetKeyword(m, "EMISSION_ON", m.GetColor("_EmissionColor").maxColorComponent > 0.0f);
         SetKeyword(m, "NORMAL_MAP_ON", m.GetTexture("_NormalMapTex") != null);
         SetKeyword(m ,"DOUBLE_SIDED_ON", (cullMode.floatValue == (float)UnityEngine.Rendering.CullMode.Off));
+        SetKeyword(m, "ENERGY_COMPENSATION_ON", energyCompensation.floatValue > 0.5f);
 
         var surfaceTypeValue = (SurfaceType)surfaceType.intValue;
 
@@ -129,6 +133,7 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
 
         var surfaceTypeValue = (SurfaceType)surfaceType.intValue;
         var doubleSided = cullMode.floatValue == (float)UnityEngine.Rendering.CullMode.Off;
+        var energyComp = energyCompensation.floatValue > 0.5f;
 
         EditorGUI.BeginChangeCheck();
         {
@@ -163,6 +168,9 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
             m_MaterialEditor.ColorProperty(specularColor, "Specular Color");
             m_MaterialEditor.RangeProperty(metalicValue, "Metallic");
             m_MaterialEditor.RangeProperty(smoothnessValue, "Smoothness");
+            EditorGUI.indentLevel = 1;
+            energyComp = EditorGUILayout.Toggle(Styles.energyCompText, energyComp);
+            EditorGUI.indentLevel = 0;
             m_MaterialEditor.RangeProperty(iorValue, "Index Of Refraction");
 
             bool hadEmissionTexture = emissionTex.textureValue != null;
@@ -187,6 +195,8 @@ public class PathTracingSimpleShaderGUI : ShaderGUI
             surfaceType.intValue = (int)surfaceTypeValue;
 
             cullMode.floatValue = (float)(doubleSided ? UnityEngine.Rendering.CullMode.Off : UnityEngine.Rendering.CullMode.Back);
+
+            energyCompensation.floatValue = energyComp ? 1.0f : 0.0f;
 
             MaterialChanged(material);
         }

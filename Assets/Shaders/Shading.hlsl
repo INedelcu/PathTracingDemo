@@ -6,6 +6,10 @@
 #include "Utils.hlsl"
 #include "RayPayload.hlsl"
 
+// GGX single-scatter directional albedo E_ss(NdotV, perceptualRoughness) with Fresnel=1
+Texture2D<float>  g_EnergyCompLUT;
+SamplerState sampler_g_EnergyCompLUT;
+
 // Geometry for one opaque hit, in world space. Filled by LoadSurfaceHit.
 struct SurfaceHit
 {
@@ -25,6 +29,21 @@ struct MaterialSample
     float alpha;
     float3 emission;
 };
+
+// Multiple-scattering energy compensation for the specular lobe (Kulla & Conty 2017,
+// Turquin 2019). Single-scatter GGX (weight F * G2 / G1) drops the light that scatters
+// more than once across the microsurface, losing up to about half the energy at high
+// roughness - the white furnace test makes this visible. E_ss is the single-scatter
+// directional albedo with F = 1 (from the baked LUT), so 1 - E_ss is the lost fraction;
+// scaling the lobe by this factor puts it back, tinted by the average Fresnel of the
+// extra bounces. A metal has no diffuse lobe to carry the (1 - F0) tint, so without this
+// it comes out too dark, the more so the rougher and more saturated it is.
+float3 SpecularEnergyCompensation(float3 F0, float NdotV, float alpha)
+{
+    float  Ess  = g_EnergyCompLUT.SampleLevel(sampler_g_EnergyCompLUT, float2(NdotV, sqrt(alpha)), 0);
+    float3 Favg = F0 + (1.0 - F0) * (1.0 / 21.0); // cosine-weighted Schlick average, (20 F0 + 1) / 21
+    return 1.0 + Favg * (1.0 - Ess) / max(Ess, 1e-3);
+}
 
 void ShadeOpaqueSurface(inout RayPayload payload, in SurfaceHit hit, in MaterialSample mat, float3 V)
 {
@@ -50,6 +69,16 @@ void ShadeOpaqueSurface(inout RayPayload payload, in SurfaceHit hit, in Material
     float3 specularNormal = hit.worldNormal;
 #endif
 
+    // Specular energy-compensation multiplier. It depends only on the view angle,
+    // roughness and F0 (not the sampled direction), so evaluate it once and apply the
+    // same factor to the next event estimate and the sampled bounce.
+#if ENERGY_COMPENSATION_ON
+    float  NdotV = saturate(dot(specularNormal, V));
+    float3 specularEnergyComp = SpecularEnergyCompensation(mat.F0, NdotV, mat.alpha);
+#else
+    float3 specularEnergyComp = 1.0;
+#endif
+
     float3 hitRayOrigin = OffsetRayOrigin(hit.worldPosition, hit.worldFaceNormal);
 
     // Single sample next event estimation: pick one light uniformly, evaluate
@@ -71,7 +100,7 @@ void ShadeOpaqueSurface(inout RayPayload payload, in SurfaceHit hit, in Material
             && dot(hit.worldFaceNormal, wi) > 0)
         {
             float  pickPdf = 1.0 / (float)g_LightCount;
-            float3 fSpec   = EvaluateSpecularGGX(V, wi, specularNormal, mat.F0, mat.alpha);
+            float3 fSpec   = EvaluateSpecularGGX(V, wi, specularNormal, mat.F0, mat.alpha) * specularEnergyComp;
             float3 fDiff   = EvaluateDiffuseLambert(diffuseTint, hit.worldNormal, wi);
             float3 shadowRayOrigin = OffsetRayOrigin(hit.worldPosition, hit.worldFaceNormal, K_SHADOW_RAY_OFFSET_SCALE);
             float  visible = TraceShadowRay(shadowRayOrigin, wi, dist * (1.0 - K_SHADOW_RAY_T_EPSILON));
@@ -100,6 +129,7 @@ void ShadeOpaqueSurface(inout RayPayload payload, in SurfaceHit hit, in Material
             payload.Terminate();
             return;
         }
+        weight *= specularEnergyComp;
         weight /= specularChance;
     }
     else
